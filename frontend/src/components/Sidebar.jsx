@@ -1,8 +1,9 @@
 import React from 'react';
 
-export default function Sidebar({ activeTab, onTabChange, currentUser }) {
+export default function Sidebar({ activeTab, onTabChange, currentUser, unreadCount = 0 }) {
   const navItems = [
     { id: 'dashboard', label: 'Tổng Quan Học Tập', icon: 'fa-chart-pie', group: 'Cổng Cá Nhân' },
+    { id: 'notifications', label: 'Thông Báo Giảng Viên', icon: 'fa-bell', group: 'Cổng Cá Nhân' },
     { id: 'portal', label: 'Hồ Sơ & Bảng Điểm', icon: 'fa-id-card', group: 'Cổng Cá Nhân' },
     { id: 'timetable', label: 'Lịch Học Cá Nhân', icon: 'fa-calendar-days', group: 'Cổng Cá Nhân' },
     { id: 'attendance', label: 'Theo Dõi Chuyên Cần', icon: 'fa-clipboard-user', group: 'Cổng Cá Nhân' },
@@ -35,9 +36,27 @@ export default function Sidebar({ activeTab, onTabChange, currentUser }) {
             key={item.id}
             className={`nav-item ${activeTab === item.id ? 'active' : ''}`}
             onClick={() => onTabChange(item.id)}
+            style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
           >
-            <i className={`fa-solid ${item.icon}`}></i>
-            <span>{item.label}</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <i className={`fa-solid ${item.icon}`} style={{ width: '18px', textAlign: 'center' }}></i>
+              <span>{item.label}</span>
+            </div>
+            {item.id === 'notifications' && unreadCount > 0 && (
+              <span style={{
+                background: '#ef4444',
+                color: '#fff',
+                fontSize: '10px',
+                fontWeight: 800,
+                padding: '1px 6px',
+                borderRadius: '10px',
+                minWidth: '16px',
+                textAlign: 'center',
+                boxShadow: '0 0 8px rgba(239, 68, 68, 0.4)'
+              }}>
+                {unreadCount}
+              </span>
+            )}
           </a>
         ))}
 

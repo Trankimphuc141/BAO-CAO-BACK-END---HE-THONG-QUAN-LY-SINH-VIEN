@@ -2,6 +2,7 @@ const User = require('../models/User');
 const Grade = require('../models/Grade');
 const ClassSection = require('../models/ClassSection');
 const Announcement = require('../models/Announcement');
+const Notification = require('../models/Notification');
 
 // 1. Lấy thông tin hồ sơ học tập và tổng kết GPA/CPA
 exports.getStudentPortalInfo = async (req, res) => {
@@ -117,6 +118,43 @@ exports.deleteAnnouncement = async (req, res) => {
     try {
         await Announcement.findByIdAndDelete(req.params.id);
         return res.status(200).json({ success: true, message: 'Đã xóa thông báo' });
+    } catch (err) {
+        return res.status(500).json({ success: false, error: err.message });
+    }
+};
+
+// 5. Lấy danh sách thông báo cá nhân (từ giảng viên gửi riêng/gửi cho lớp)
+exports.getNotifications = async (req, res) => {
+    try {
+        const studentId = req.user ? req.user.id : null;
+        if (!studentId) {
+            return res.status(400).json({ success: false, message: 'Thiếu thông tin người dùng' });
+        }
+        const notifications = await Notification.find({ recipient: studentId })
+            .populate('sender', 'name avatar code')
+            .sort({ createdAt: -1 });
+        return res.status(200).json({ success: true, count: notifications.length, data: notifications });
+    } catch (err) {
+        return res.status(500).json({ success: false, error: err.message });
+    }
+};
+
+// 6. Đánh dấu thông báo đã đọc
+exports.markNotificationRead = async (req, res) => {
+    try {
+        await Notification.findByIdAndUpdate(req.params.id, { isRead: true, readAt: new Date() });
+        return res.status(200).json({ success: true, message: 'Đã đọc thông báo' });
+    } catch (err) {
+        return res.status(500).json({ success: false, error: err.message });
+    }
+};
+
+// 7. Đánh dấu tất cả thông báo là đã đọc
+exports.markAllNotificationsRead = async (req, res) => {
+    try {
+        const studentId = req.user ? req.user.id : null;
+        await Notification.updateMany({ recipient: studentId, isRead: false }, { $set: { isRead: true, readAt: new Date() } });
+        return res.status(200).json({ success: true, message: 'Đã đọc tất cả thông báo' });
     } catch (err) {
         return res.status(500).json({ success: false, error: err.message });
     }

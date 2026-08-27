@@ -99,6 +99,22 @@ class ApiService {
     return await this.request('/student/announcements');
   }
 
+  async getNotifications() {
+    return await this.request('/student/notifications');
+  }
+
+  async markNotificationRead(id) {
+    return await this.request(`/student/notifications/${id}/read`, {
+      method: 'PUT'
+    });
+  }
+
+  async markAllNotificationsRead() {
+    return await this.request('/student/notifications/read-all', {
+      method: 'PUT'
+    });
+  }
+
   // 4. Exams
   async getExamSchedules(semester = '', date = '') {
     return await this.request(`/exams?semester=${semester}&date=${date}`);

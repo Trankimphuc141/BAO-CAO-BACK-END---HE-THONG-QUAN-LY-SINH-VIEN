@@ -3,6 +3,7 @@ import React from 'react';
 export default function Header({ activeTab, currentUser, onOpenAuth, onLogout }) {
   const titles = {
     dashboard: { title: 'Tổng Quan Học Tập', sub: 'Cổng tra cứu kết quả học vụ, thời khóa biểu và nộp luận văn', icon: 'fa-chart-pie' },
+    notifications: { title: 'Thông Báo Từ Giảng Viên & Học Vụ', sub: 'Xem các tin tức công bố điểm, cảnh báo chuyên cần và tin nhắn hướng dẫn từ giảng viên', icon: 'fa-bell' },
     portal: { title: 'Hồ Sơ & Bảng Điểm', sub: 'Hồ sơ sinh viên, bảng điểm chi tiết các học kỳ, điểm GPA/CPA', icon: 'fa-id-card' },
     timetable: { title: 'Lịch Học Cá Nhân Theo Thời Gian Thực', sub: 'Thời khóa biểu học tập với ngày tháng chạy theo thời gian thực, phân chia Buổi & Ca học', icon: 'fa-calendar-days' },
     attendance: { title: 'Theo Dõi Chuyên Cần', sub: 'Giám sát số buổi học và cảnh báo nguy cơ cấm thi vắng > 20%', icon: 'fa-clipboard-user' },

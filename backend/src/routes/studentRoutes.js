@@ -12,4 +12,9 @@ router.get('/announcements', authenticate, studentController.getAnnouncements);
 router.post('/announcements', authenticate, authorize('teacher', 'admin'), studentController.createAnnouncement);
 router.delete('/announcements/:id', authenticate, authorize('teacher', 'admin'), studentController.deleteAnnouncement);
 
+// Sinh viên lấy và quản lý thông báo cá nhân gửi từ giảng viên
+router.get('/notifications', authenticate, studentController.getNotifications);
+router.put('/notifications/:id/read', authenticate, studentController.markNotificationRead);
+router.put('/notifications/read-all', authenticate, studentController.markAllNotificationsRead);
+
 module.exports = router;

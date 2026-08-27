@@ -12,6 +12,7 @@ import AttendancePage from './pages/AttendancePage';
 import ExamPage from './pages/ExamPage';
 import SurveyPage from './pages/SurveyPage';
 import ThesisPage from './pages/ThesisPage';
+import NotificationsPage from './pages/NotificationsPage';
 
 import './App.css';
 
@@ -20,6 +21,26 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState(api.currentUser);
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [realtimeNotification, setRealtimeNotification] = useState(null);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  const fetchUnreadCount = async () => {
+    if (!api.currentUser) return;
+    try {
+      const res = await api.getNotifications();
+      if (res.success && res.data) {
+        const count = res.data.filter(n => !n.isRead).length;
+        setUnreadCount(count);
+      }
+    } catch (err) {
+      console.error('Error fetching notifications count:', err);
+    }
+  };
+
+  useEffect(() => {
+    if (currentUser) {
+      fetchUnreadCount();
+    }
+  }, [currentUser, activeTab]); // Refresh when user changes or tab switches
 
   useEffect(() => {
     if (!currentUser) {
@@ -40,6 +61,7 @@ export default function App() {
     socket.on('new-notification', (notif) => {
       console.log('📣 WebSocket notification received:', notif);
       setRealtimeNotification(notif);
+      fetchUnreadCount(); // Fetch count in real-time on message receipt
     });
 
     return () => {
@@ -73,7 +95,7 @@ export default function App() {
       <div className="bg-glow-orb orb-2"></div>
 
       <div id="app-container">
-        <Sidebar activeTab={activeTab} onTabChange={handleTabChange} currentUser={currentUser} />
+        <Sidebar activeTab={activeTab} onTabChange={handleTabChange} currentUser={currentUser} unreadCount={unreadCount} />
 
         <div className="main-wrapper">
           <Header
@@ -85,6 +107,7 @@ export default function App() {
 
           <main className="content-body">
             {activeTab === 'dashboard' && <Dashboard currentUser={currentUser} />}
+            {activeTab === 'notifications' && <NotificationsPage />}
             {activeTab === 'portal' && (
               <ProfilePage currentUser={currentUser} onAvatarUpdated={handleAvatarUpdated} />
             )}

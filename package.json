@@ -6,7 +6,9 @@
     "dev": "npm --prefix BAO-CAO-BACK-END---HE-THONG-QUAN-LY-SINH-VIEN/backend run dev",
     "start": "npm --prefix BAO-CAO-BACK-END---HE-THONG-QUAN-LY-SINH-VIEN/backend start",
     "seed": "npm --prefix BAO-CAO-BACK-END---HE-THONG-QUAN-LY-SINH-VIEN/backend run seed",
-    "clear": "npm --prefix BAO-CAO-BACK-END---HE-THONG-QUAN-LY-SINH-VIEN/backend run clear"
+    "clear": "npm --prefix BAO-CAO-BACK-END---HE-THONG-QUAN-LY-SINH-VIEN/backend run clear",
+    "build:frontend": "npm --prefix BAO-CAO-BACK-END---HE-THONG-QUAN-LY-SINH-VIEN/frontend run build",
+    "frontend:dev": "npm --prefix BAO-CAO-BACK-END---HE-THONG-QUAN-LY-SINH-VIEN/frontend run dev"
   },
   "keywords": [],
   "author": "TranPhamKimPhuc",

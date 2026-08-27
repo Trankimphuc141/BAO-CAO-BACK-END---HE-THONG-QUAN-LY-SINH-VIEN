@@ -15,8 +15,13 @@ app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Serve static frontend files
-app.use(express.static(path.join(__dirname, '../../frontend')));
+// Serve static frontend files (React Vite build)
+const fs = require('fs');
+const distPath = path.join(__dirname, '../../frontend/dist');
+const frontendPath = path.join(__dirname, '../../frontend');
+const staticPath = fs.existsSync(distPath) ? distPath : frontendPath;
+
+app.use(express.static(staticPath));
 
 // API Routes
 app.use('/api', routes);
@@ -32,7 +37,10 @@ app.get('/api/health', (req, res) => {
 
 // Fallback to Frontend index.html for Single Page Application
 app.use((req, res) => {
-    res.sendFile(path.join(__dirname, '../../frontend/index.html'));
+    const indexPath = fs.existsSync(path.join(distPath, 'index.html'))
+        ? path.join(distPath, 'index.html')
+        : path.join(frontendPath, 'index.html');
+    res.sendFile(indexPath);
 });
 
 module.exports = app;

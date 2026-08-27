@@ -94,15 +94,10 @@ function Login() {
                 >
                     {/* Brand Header */}
                     <Stack direction="row" alignItems="center" gap={1.5} sx={{ mb: 1 }}>
-                        <Box sx={{
-                            width: 56, height: 56, borderRadius: '12px',
-                            bgcolor: 'white',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
-                            overflow: 'hidden'
-                        }}>
-                            <img src="/vus_logo.png" alt="VUS" style={{ width: 52, height: 52, objectFit: 'contain' }} />
-                        </Box>
+                        <img src="/vus_logo.png" alt="VUS" style={{
+                            width: 72, height: 54, objectFit: 'contain',
+                            filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.6)) brightness(1.05)'
+                        }} />
                         <Typography variant="h4" fontWeight={900} sx={{ letterSpacing: '-0.5px' }}>
                             VUS
                         </Typography>

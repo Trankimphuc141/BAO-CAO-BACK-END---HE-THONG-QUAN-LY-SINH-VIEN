@@ -18,7 +18,8 @@ import {
     QrCode as QrIcon,
     Notifications as NotificationIcon,
     Analytics as AnalyticsIcon,
-    AutoGraph as AutoGraphIcon,
+    AdminPanelSettings as AdminIcon,
+    Person as ProfileIcon,
     KeyboardArrowRight
 } from '@mui/icons-material';
 
@@ -47,7 +48,13 @@ function Layout(props) {
         { text: 'Điểm Danh', icon: <AttendanceIcon />, path: '/attendance/mark' },
         { text: 'Điểm Danh QR', icon: <QrIcon />, path: '/attendance/qr' },
         { text: 'Thông Báo', icon: <NotificationIcon />, path: '/notifications' },
+        { text: 'Hồ Sơ', icon: <ProfileIcon />, path: '/profile' },
     ];
+
+    // Chỉ hiện menu quản trị cho admin
+    const adminItems = user?.role === 'admin' ? [
+        { text: 'Quản Trị', icon: <AdminIcon />, path: '/admin', adminOnly: true },
+    ] : [];
 
     const isActive = (item) => {
         if (item.exact) return location.pathname === item.path;
@@ -58,15 +65,10 @@ function Layout(props) {
         <Box sx={{ height: '100%', background: GRAD_BG, display: 'flex', flexDirection: 'column' }}>
             {/* Logo header */}
             <Box sx={{ px: 3, py: 2.5, display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                <Box sx={{
-                    width: 44, height: 44, borderRadius: '10px',
-                    bgcolor: 'white',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    boxShadow: '0 4px 15px rgba(0,0,0,0.3)',
-                    overflow: 'hidden', flexShrink: 0
-                }}>
-                    <img src="/vus_logo.png" alt="VUS" style={{ width: 40, height: 40, objectFit: 'contain' }} />
-                </Box>
+                <img src="/vus_logo.png" alt="VUS" style={{
+                    width: 48, height: 36, objectFit: 'contain', flexShrink: 0,
+                    filter: 'drop-shadow(0 2px 6px rgba(0,0,0,0.5)) brightness(1.05)'
+                }} />
                 <Box>
                     <Typography variant="h6" sx={{ fontWeight: 900, color: 'white', letterSpacing: '-0.5px', lineHeight: 1 }}>
                         VUS
@@ -141,6 +143,48 @@ function Layout(props) {
                     );
                 })}
             </List>
+
+            {/* Admin-only section */}
+            {adminItems.length > 0 && (
+                <>
+                    <Divider sx={{ borderColor: 'rgba(255,255,255,0.06)', mx: 2, mb: 0.5 }} />
+                    <Typography variant="caption" sx={{ px: 3, pb: 0.5, color: 'rgba(255,255,255,0.28)', fontSize: '0.65rem', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+                        Quản Trị
+                    </Typography>
+                    <List sx={{ px: 1.5 }}>
+                        {adminItems.map((item) => {
+                            const active = isActive(item);
+                            return (
+                                <ListItem key={item.text} disablePadding sx={{ mb: 0.5 }}>
+                                    <ListItemButton
+                                        onClick={() => { navigate(item.path); setMobileOpen(false); }}
+                                        sx={{
+                                            borderRadius: '12px',
+                                            px: 2, py: 1.2,
+                                            bgcolor: active ? 'rgba(239,68,68,0.2)' : 'transparent',
+                                            border: active ? '1px solid rgba(239,68,68,0.3)' : '1px solid transparent',
+                                            transition: 'all 0.2s ease',
+                                            '&:hover': {
+                                                bgcolor: 'rgba(239,68,68,0.12)',
+                                                transform: 'translateX(2px)',
+                                            }
+                                        }}
+                                    >
+                                        <ListItemIcon sx={{ minWidth: 38, color: active ? '#f87171' : 'rgba(239,68,68,0.55)', transition: 'color 0.2s' }}>
+                                            {item.icon}
+                                        </ListItemIcon>
+                                        <ListItemText
+                                            primary={item.text}
+                                            primaryTypographyProps={{ fontWeight: active ? 700 : 500, fontSize: '0.875rem', color: active ? '#fca5a5' : 'rgba(239,68,68,0.65)' }}
+                                        />
+                                        {active && <KeyboardArrowRight sx={{ color: '#f87171', fontSize: 18 }} />}
+                                    </ListItemButton>
+                                </ListItem>
+                            );
+                        })}
+                    </List>
+                </>
+            )}
 
             {/* Bottom logout */}
             <Box sx={{ px: 1.5, pb: 2 }}>

@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cổng Thông Tin Sinh Viên | Quản Lý Học Vụ & Đào Tạo</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <!-- Background Glows -->
+    <div class="bg-glow-orb orb-1"></div>
+    <div class="bg-glow-orb orb-2"></div>
+
+    <div id="app-container">
+        <!-- Sidebar Navigation (Dành riêng cho Sinh Viên) -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="brand-icon">
+                    <i class="fa-solid fa-graduation-cap"></i>
+                </div>
+                <div class="brand-text">
+                    <h2>STUDENT PORTAL</h2>
+                    <span>Cổng Thông Tin Sinh Viên</span>
+                </div>
+            </div>
+
+            <div class="portal-mode-badge">
+                <i class="fa-solid fa-user-graduate"></i>
+                <span>Tài Khoản Sinh Viên</span>
+            </div>
+
+            <div class="nav-group">
+                <div class="nav-label">Cổng Cá Nhân</div>
+                <a class="nav-item active" data-tab="dashboard">
+                    <i class="fa-solid fa-chart-pie"></i>
+                    <span>Tổng Quan Học Tập</span>
+                </a>
+                <a class="nav-item" data-tab="portal">
+                    <i class="fa-solid fa-id-card"></i>
+                    <span>Hồ Sơ & Bảng Điểm</span>
+                </a>
+                <a class="nav-item" data-tab="timetable">
+                    <i class="fa-solid fa-calendar-days"></i>
+                    <span>Lịch Học Cá Nhân</span>
+                </a>
+                <a class="nav-item" data-tab="attendance">
+                    <i class="fa-solid fa-clipboard-user"></i>
+                    <span>Theo Dõi Chuyên Cần</span>
+                </a>
+                <a class="nav-item" data-tab="exams">
+                    <i class="fa-solid fa-pen-ruler"></i>
+                    <span>Lịch Thi Cá Nhân</span>
+                </a>
+
+                <div class="nav-label">Học Thuật & Tốt Nghiệp</div>
+                <a class="nav-item" data-tab="survey">
+                    <i class="fa-solid fa-star-half-stroke"></i>
+                    <span>Đánh Giá Giảng Dạy</span>
+                </a>
+                <a class="nav-item" data-tab="thesis">
+                    <i class="fa-solid fa-file-arrow-up"></i>
+                    <span>Nộp Đồ Án / Luận Văn</span>
+                </a>
+            </div>
+
+            <div class="sidebar-footer">
+                <div class="user-quick-profile">
+                    <img id="sidebar-avatar" src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80" alt="Avatar" class="user-avatar">
+                    <div class="user-info">
+                        <div id="sidebar-user-name" class="user-name">Chưa đăng nhập</div>
+                        <div id="sidebar-user-role" class="user-role-badge">SINH VIÊN</div>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <div class="main-wrapper">
+            <!-- Header Top Bar -->
+            <header class="top-header">
+                <div class="header-title">
+                    <h1 id="page-title"><i class="fa-solid fa-chart-pie"></i> Tổng Quan Học Tập</h1>
+                    <p id="page-subtitle">Cổng tra cứu kết quả học vụ, thời khóa biểu và nộp luận văn</p>
+                </div>
+
+                <div class="header-actions">
+                    <div id="user-logged-in-actions" style="display: none; align-items: center; gap: 10px;">
+                        <span id="header-student-code" style="font-size: 12.5px; color: #60a5fa; font-weight: 600;">SV001</span>
+                        <button class="btn btn-danger btn-sm" onclick="window.app.logout()">
+                            <i class="fa-solid fa-right-from-bracket"></i> Đăng Xuất
+                        </button>
+                    </div>
+                    <div id="user-guest-actions" style="display: flex; gap: 8px;">
+                        <button class="btn btn-primary btn-sm" onclick="window.app.openAuthModal()">
+                            <i class="fa-solid fa-arrow-right-to-bracket"></i> Đăng Nhập
+                        </button>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Content Body -->
+            <main class="content-body">
+                
+                <!-- 1. TAB: TỔNG QUAN HỌC TẬP (DASHBOARD) -->
+                <div id="tab-dashboard" class="tab-panel active">
+                    <div class="grid-cards">
+                        <div class="stat-card">
+                            <div class="stat-header">
+                                <span class="stat-title">Điểm Trung Bình (GPA Hệ 4)</span>
+                                <div class="stat-icon" style="background: rgba(59, 130, 246, 0.2); color: #60a5fa;"><i class="fa-solid fa-award"></i></div>
+                            </div>
+                            <div class="stat-value" id="dash-gpa4">0.0 / 4.0</div>
+                            <div class="stat-desc">Điểm tích lũy học phần</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-header">
+                                <span class="stat-title">Số Tín Chỉ Tích Lũy</span>
+                                <div class="stat-icon" style="background: rgba(16, 185, 129, 0.2); color: #34d399;"><i class="fa-solid fa-graduation-cap"></i></div>
+                            </div>
+                            <div class="stat-value" id="dash-credits">0</div>
+                            <div class="stat-desc">Tín chỉ đã hoàn thành</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-header">
+                                <span class="stat-title">Tỷ Lệ Tham Gia Học (Chuyên Cần)</span>
+                                <div class="stat-icon" style="background: rgba(245, 158, 11, 0.2); color: #fbbf24;"><i class="fa-solid fa-user-check"></i></div>
+                            </div>
+                            <div class="stat-value" id="dash-attendance-rate">100%</div>
+                            <div class="stat-desc">Mức độ chuyên cần trên lớp</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-header">
+                                <span class="stat-title">Tiến Độ Nộp Luận Văn</span>
+                                <div class="stat-icon" style="background: rgba(139, 92, 246, 0.2); color: #a78bfa;"><i class="fa-solid fa-file-arrow-up"></i></div>
+                            </div>
+                            <div class="stat-value" id="dash-thesis-status" style="font-size: 16px; margin-top: 6px;">Đang thực hiện</div>
+                            <div class="stat-desc">Đồ án / Khóa luận tốt nghiệp</div>
+                        </div>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px;">
+                        <div class="glass-panel">
+                            <div class="panel-header">
+                                <h3><i class="fa-solid fa-bullhorn"></i> Thông Báo Học Vụ & Giảng Viên Mới Nhất</h3>
+                            </div>
+                            <div id="dash-announcements-list" style="display: flex; flex-direction: column; gap: 10px;">
+                                <div style="color: var(--text-muted); font-size: 13px; text-align: center; padding: 20px 0;">Không có thông báo mới</div>
+                            </div>
+                        </div>
+
+                        <div class="glass-panel">
+                            <div class="panel-header">
+                                <h3><i class="fa-solid fa-calendar-check"></i> Lịch Học Hôm Nay & Các Ca Sắp Tới</h3>
+                            </div>
+                            <div id="dash-upcoming-classes" style="display: flex; flex-direction: column; gap: 10px;">
+                                <div style="color: var(--text-muted); font-size: 13px; text-align: center; padding: 20px 0;">Chưa có lịch học được ghi nhận</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2. TAB: HỒ SƠ & BẢNG ĐIỂM CHI TIẾT (PORTAL) -->
+                <div id="tab-portal" class="tab-panel">
+                    <div style="display: grid; grid-template-columns: 320px 1fr; gap: 20px;">
+                        <div class="glass-panel">
+                            <div style="text-align: center; padding-bottom: 16px; border-bottom: 1px solid var(--border-color);">
+                                <div class="avatar-upload-wrapper" style="position: relative; display: inline-block; margin-bottom: 10px;">
+                                    <img id="portal-avatar" src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80" alt="Avatar" style="width: 90px; height: 90px; border-radius: 50%; border: 3px solid var(--primary); object-fit: cover; display: block;">
+                                    <button class="avatar-edit-badge" onclick="document.getElementById('avatar-file-input').click()" title="Tải ảnh từ máy tính">
+                                        <i class="fa-solid fa-camera"></i>
+                                    </button>
+                                </div>
+                                <input type="file" id="avatar-file-input" accept="image/*" style="display: none;" onchange="window.app.handleAvatarUpload(event)">
+                                <div style="margin-bottom: 12px;">
+                                    <button class="btn btn-secondary btn-sm" onclick="document.getElementById('avatar-file-input').click()" style="font-size: 11px; padding: 3px 10px;">
+                                        <i class="fa-solid fa-upload"></i> Tải ảnh từ máy tính
+                                    </button>
+                                </div>
+                                <h3 id="portal-name" style="font-size: 16px; color: #fff;">-</h3>
+                                <p id="portal-code" style="font-size: 12px; color: #60a5fa; font-weight: 600;">-</p>
+                            </div>
+                            <div style="margin-top: 16px; display: flex; flex-direction: column; gap: 10px; font-size: 12.5px;">
+                                <div><strong style="color: var(--text-muted);">Khoa:</strong> <span id="portal-dept">-</span></div>
+                                <div><strong style="color: var(--text-muted);">Ngành:</strong> <span id="portal-major">-</span></div>
+                                <div><strong style="color: var(--text-muted);">Lớp SH:</strong> <span id="portal-class">-</span></div>
+                                <div><strong style="color: var(--text-muted);">Email:</strong> <span id="portal-email">-</span></div>
+                                <div><strong style="color: var(--text-muted);">Khóa học:</strong> <span id="portal-year">-</span></div>
+                            </div>
+                            <div style="margin-top: 20px; padding: 14px; background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.3); border-radius: 10px;">
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+                                    <span style="font-size: 12px; color: var(--text-muted);">Điểm GPA (Hệ 4):</span>
+                                    <strong id="portal-gpa4" style="color: #60a5fa; font-size: 15px;">-</strong>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+                                    <span style="font-size: 12px; color: var(--text-muted);">Điểm CPA (Hệ 10):</span>
+                                    <strong id="portal-gpa10" style="color: #34d399; font-size: 15px;">-</strong>
+                                </div>
+                                <div style="display: flex; justify-content: space-between;">
+                                    <span style="font-size: 12px; color: var(--text-muted);">Xếp loại:</span>
+                                    <span id="portal-standing" class="badge badge-success">-</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <div class="glass-panel">
+                                <div class="panel-header">
+                                    <h3><i class="fa-solid fa-receipt"></i> Bảng Điểm Chi Tiết Các Học Phần</h3>
+                                </div>
+                                <div class="table-responsive">
+                                    <table class="custom-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Mã HP</th>
+                                                <th>Tên Môn Học</th>
+                                                <th>Số TC</th>
+                                                <th>Chuyên cần (10%)</th>
+                                                <th>Giữa kỳ (30%)</th>
+                                                <th>Cuối kỳ (60%)</th>
+                                                <th>Điểm hệ 10</th>
+                                                <th>Điểm chữ</th>
+                                                <th>Kết quả</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="portal-grades-tbody">
+                                            <tr><td colspan="9" style="text-align: center; color: var(--text-muted);">Chưa có bảng điểm</td></tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <div class="glass-panel">
+                                <div class="panel-header">
+                                    <h3><i class="fa-solid fa-bullhorn"></i> Danh Sách Thông Báo Học Vụ & Giảng Viên</h3>
+                                </div>
+                                <div id="portal-announcements-list" style="display: flex; flex-direction: column; gap: 10px;">
+                                    <div style="color: var(--text-muted); font-size: 13px; text-align: center; padding: 20px 0;">Không có thông báo mới</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 3. TAB: THỜI KHÓA BIỂU CÁ NHÂN (REAL-TIME TIMETABLE) -->
+                <div id="tab-timetable" class="tab-panel">
+                    <div class="glass-panel">
+                        <div class="panel-header">
+                            <h3><i class="fa-solid fa-calendar-week"></i> Thời Khóa Biểu Học Tập Theo Thời Gian Thực</h3>
+                            <button class="btn btn-secondary btn-sm" onclick="window.app.loadTimetable()"><i class="fa-solid fa-rotate"></i> Làm mới</button>
+                        </div>
+
+                        <div class="timetable-topbar">
+                            <div class="realtime-clock-badge" id="live-clock">
+                                <i class="fa-solid fa-clock"></i> <span id="clock-text">Đang tải thời gian...</span>
+                            </div>
+
+                            <div class="week-navigator">
+                                <button class="btn btn-secondary btn-sm" onclick="window.app.changeWeek(-1)" title="Tuần trước">
+                                    <i class="fa-solid fa-chevron-left"></i> Tuần Trước
+                                </button>
+                                <span class="week-display-label" id="current-week-label">Tuần hiện tại</span>
+                                <button class="btn btn-secondary btn-sm" onclick="window.app.changeWeek(1)" title="Tuần sau">
+                                    Tuần Sau <i class="fa-solid fa-chevron-right"></i>
+                                </button>
+                                <button class="btn btn-primary btn-sm" onclick="window.app.resetToCurrentWeek()" style="margin-left: 4px;">
+                                    <i class="fa-solid fa-calendar-day"></i> Về Tuần Này
+                                </button>
+                            </div>
+
+                            <div class="shift-filter-group">
+                                <button class="shift-filter-btn active" data-shift-filter="all" onclick="window.app.filterShifts('all')">
+                                    <i class="fa-solid fa-list-check"></i> Tất cả các ca
+                                </button>
+                                <button class="shift-filter-btn" data-shift-filter="sang" onclick="window.app.filterShifts('sang')">
+                                    <i class="fa-solid fa-sun" style="color: #60a5fa;"></i> Buổi Sáng (Ca 1, 2)
+                                </button>
+                                <button class="shift-filter-btn" data-shift-filter="chieu" onclick="window.app.filterShifts('chieu')">
+                                    <i class="fa-solid fa-cloud-sun" style="color: #fbbf24;"></i> Buổi Chiều (Ca 3, 4)
+                                </button>
+                                <button class="shift-filter-btn" data-shift-filter="toi" onclick="window.app.filterShifts('toi')">
+                                    <i class="fa-solid fa-moon" style="color: #c084fc;"></i> Buổi Tối (Ca 5)
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="schedule-grid" id="timetable-grid"></div>
+                    </div>
+                </div>
+
+                <!-- 4. TAB: THEO DÕI CHUYÊN CẦN & CẢNH BÁO CẤM THI -->
+                <div id="tab-attendance" class="tab-panel">
+                    <div class="glass-panel">
+                        <div class="panel-header">
+                            <h3><i class="fa-solid fa-clipboard-user"></i> Theo Dõi Số Buổi Chuyên Cần & Cảnh Báo Cấm Thi (> 20%)</h3>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="custom-table">
+                                <thead>
+                                    <tr>
+                                        <th>Mã LHP</th>
+                                        <th>Môn Học</th>
+                                        <th>Có Mặt</th>
+                                        <th>Đi Muộn</th>
+                                        <th>Vắng Có Phép</th>
+                                        <th>Vắng K.Phép</th>
+                                        <th>Tỷ Lệ Vắng (%)</th>
+                                        <th>Điều Kiện Dự Thi</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="attendance-tbody">
+                                    <tr><td colspan="8" style="text-align: center; color: var(--text-muted);">Chưa có dữ liệu chuyên cần</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 5. TAB: LỊCH THI CÁ NHÂN -->
+                <div id="tab-exams" class="tab-panel">
+                    <div class="glass-panel">
+                        <div class="panel-header">
+                            <h3><i class="fa-solid fa-pen-ruler"></i> Tra Cứu Lịch Thi Kết Thúc Học Phần & Phòng Thi</h3>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="custom-table">
+                                <thead>
+                                    <tr>
+                                        <th>Môn Thi</th>
+                                        <th>Mã LHP</th>
+                                        <th>Ngày Thi</th>
+                                        <th>Khung Giờ</th>
+                                        <th>Phòng Thi</th>
+                                        <th>Hình Thức Thi</th>
+                                        <th>Trạng Thái</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="exams-tbody">
+                                    <tr><td colspan="7" style="text-align: center; color: var(--text-muted);">Chưa có lịch thi</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 6. TAB: ĐÁNH GIÁ GIẢNG DẠY (KHẢO SÁT ẨN DANH) -->
+                <div id="tab-survey" class="tab-panel">
+                    <div class="glass-panel">
+                        <div class="panel-header">
+                            <h3><i class="fa-solid fa-star-half-stroke"></i> Phiếu Khảo Sát Đánh Giá Chất Lượng Giảng Dạy (Bảo Mật Ẩn Danh)</h3>
+                        </div>
+                        <div id="survey-cards-container" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 18px;">
+                            <div style="color: var(--text-muted); font-size: 13px; grid-column: 1/-1; text-align: center; padding: 20px 0;">Không có phiếu khảo sát nào đang mở</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 7. TAB: NỘP ĐỒ ÁN / LUẬN VĂN TỐT NGHIỆP (STUDENT THESIS SUBMISSION) -->
+                <div id="tab-thesis" class="tab-panel">
+                    <div style="display: grid; grid-template-columns: 420px 1fr; gap: 20px;">
+                        <div class="glass-panel">
+                            <div class="panel-header">
+                                <h3><i class="fa-solid fa-file-arrow-up"></i> Nộp Báo Cáo Đồ Án / Luận Văn</h3>
+                            </div>
+                            <form id="form-create-thesis">
+                                <div class="form-group">
+                                    <label>Tên Đề tài Đồ án / Luận văn tốt nghiệp:</label>
+                                    <input type="text" id="thesis-title" class="form-control" placeholder="VD: Nghiên cứu Kiến trúc Back-end..." required>
+                                </div>
+                                <div class="form-group">
+                                    <label>Chọn mốc tiến độ nộp:</label>
+                                    <select id="thesis-milestone" class="form-control">
+                                        <option value="M1">Mốc 1: Nộp Đề Cương Chi Tiết & Kế Hoạch</option>
+                                        <option value="M2">Mốc 2: Báo Cáo Tiến Độ Giữa Kỳ</option>
+                                        <option value="M3">Mốc 3: Nộp Bản Thảo Báo Cáo Cuối Cùng</option>
+                                        <option value="M4">Mốc 4: Nộp Slide & Source Code Bảo Vệ</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>File báo cáo / Tài liệu đính kèm (PDF, DOCX, ZIP):</label>
+                                    <input type="file" id="thesis-file-input" class="form-control" accept=".pdf,.doc,.docx,.zip,.rar">
+                                </div>
+                                <div class="form-group">
+                                    <label>Tóm tắt nội dung báo cáo & kết quả đạt được:</label>
+                                    <textarea id="thesis-desc" class="form-control" style="min-height: 100px;" placeholder="Mô tả tóm tắt nội dung đã hoàn thành..."></textarea>
+                                </div>
+                                <button type="submit" class="btn btn-primary" style="width: 100%;">
+                                    <i class="fa-solid fa-cloud-arrow-up"></i> Nộp Báo Cáo Luận Văn Ngay
+                                </button>
+                            </form>
+                        </div>
+
+                        <div class="glass-panel">
+                            <div class="panel-header">
+                                <h3><i class="fa-solid fa-list-check"></i> Tiến Độ Các Mốc (M1 - M4) & Kết Quả Phê Duyệt</h3>
+                            </div>
+                            <div class="table-responsive">
+                                <table class="custom-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Mã Đề Tài</th>
+                                            <th>Tên Đề Tài Tốt Nghiệp</th>
+                                            <th>Tiến Độ M1 - M4</th>
+                                            <th>Ngày Bảo Vệ & Phòng</th>
+                                            <th>Trạng Thái</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="thesis-tbody">
+                                        <tr><td colspan="5" style="text-align: center; color: var(--text-muted);">Chưa đăng ký đề tài tốt nghiệp</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </main>
+        </div>
+    </div>
+
+    <!-- MODAL ĐĂNG NHẬP SINH VIÊN -->
+    <div id="modal-auth" class="modal-overlay">
+        <div class="modal-content" style="max-width: 450px;">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-user-lock"></i> Đăng Nhập Cổng Sinh Viên</h3>
+                <button class="modal-close" onclick="window.app.closeModal('modal-auth')">&times;</button>
+            </div>
+            
+            <div class="modal-body">
+                <form id="form-login">
+                    <div class="form-group">
+                        <label>Mã Sinh Viên (VD: SV2026_01, SV001...):</label>
+                        <input type="text" id="login-code" class="form-control" placeholder="Nhập mã sinh viên..." value="SV2026_01" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Mật khẩu:</label>
+                        <input type="password" id="login-password" class="form-control" placeholder="Nhập mật khẩu..." value="123" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 10px; justify-content: center;">
+                        <i class="fa-solid fa-arrow-right-to-bracket"></i> Đăng Nhập
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL LÀM ĐÁNH GIÁ GIẢNG DẠY (ẨN DANH) -->
+    <div id="modal-submit-survey" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-star"></i> Đánh Giá Môn Học (Bảo Mật Ẩn Danh)</h3>
+                <button class="modal-close" onclick="window.app.closeModal('modal-submit-survey')">&times;</button>
+            </div>
+            <form id="form-submit-survey">
+                <input type="hidden" id="survey-target-id">
+                <div class="modal-body">
+                    <h4 id="survey-modal-title" style="color: #60a5fa; font-size: 14px; margin-bottom: 16px;">-</h4>
+                    
+                    <div class="form-group">
+                        <label>1. Phương pháp giảng dạy và truyền đạt kiến thức:</label>
+                        <select id="survey-rating-teaching" class="form-control">
+                            <option value="5">⭐⭐⭐⭐⭐ (5/5 - Rất tốt, dễ hiểu)</option>
+                            <option value="4">⭐⭐⭐⭐ (4/5 - Tốt)</option>
+                            <option value="3">⭐⭐⭐ (3/5 - Trung bình)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>2. Kiến thức chuyên môn và tài liệu học tập:</label>
+                        <select id="survey-rating-knowledge" class="form-control">
+                            <option value="5">⭐⭐⭐⭐⭐ (5/5 - Sâu rộng, thực tế)</option>
+                            <option value="4">⭐⭐⭐⭐ (4/5 - Đạt yêu cầu)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>3. Tác phong lên lớp và sự hỗ trợ sinh viên:</label>
+                        <select id="survey-rating-punctuality" class="form-control">
+                            <option value="5">⭐⭐⭐⭐⭐ (5/5 - Đúng giờ, nhiệt tình)</option>
+                            <option value="4">⭐⭐⭐⭐ (4/5 - Tốt)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>4. Tính công bằng trong kiểm tra và đánh giá điểm:</label>
+                        <select id="survey-rating-fairness" class="form-control">
+                            <option value="5">⭐⭐⭐⭐⭐ (5/5 - Minh bạch, công bằng)</option>
+                            <option value="4">⭐⭐⭐⭐ (4/5 - Tốt)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Ý kiến đóng góp xây dựng môn học:</label>
+                        <textarea id="survey-feedback" class="form-control" placeholder="Góp ý xây dựng..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="window.app.closeModal('modal-submit-survey')">Hủy</button>
+                    <button type="submit" class="btn btn-primary"><i class="fa-solid fa-paper-plane"></i> Gửi Đánh Giá Ẩn Danh</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="js/api.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>

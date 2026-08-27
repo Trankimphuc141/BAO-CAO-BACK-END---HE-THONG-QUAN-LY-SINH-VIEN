@@ -1,22 +1,22 @@
 :root {
-  --bg-dark: #0b0f19;
-  --bg-card: rgba(17, 24, 39, 0.7);
-  --bg-card-hover: rgba(31, 41, 55, 0.8);
-  --primary: #2563eb;
-  --primary-hover: #1d4ed8;
-  --primary-glow: rgba(37, 99, 235, 0.35);
-  --accent-purple: #8b5cf6;
-  --accent-cyan: #06b6d4;
-  --accent-green: #10b981;
-  --accent-amber: #f59e0b;
-  --accent-rose: #f43f5e;
+  --bg-dark: #f8fafc; /* Slate 50 - Sạch sẽ, sáng sủa, thích hợp cho học đường */
+  --bg-card: #ffffff; /* Card trắng chuyên nghiệp */
+  --bg-card-hover: #f1f5f9;
+  --primary: #00529c; /* Màu xanh nước biển đặc trưng của VUS */
+  --primary-hover: #003d75;
+  --primary-glow: rgba(0, 82, 156, 0.15);
+  --accent-purple: #7c3aed;
+  --accent-cyan: #0891b2;
+  --accent-green: #059669;
+  --accent-amber: #d97706;
+  --accent-rose: #dc2626; /* Màu đỏ VUS */
   
-  --text-main: #f3f4f6;
-  --text-muted: #9ca3af;
-  --text-light: #6b7280;
+  --text-main: #0f172a; /* Slate 900 - Chữ đen đậm dễ đọc */
+  --text-muted: #334155; /* Slate 700 */
+  --text-light: #64748b; /* Slate 500 */
   
-  --border-color: rgba(255, 255, 255, 0.08);
-  --border-active: rgba(59, 130, 246, 0.5);
+  --border-color: #e2e8f0; /* Viền xám nhạt tinh tế */
+  --border-active: rgba(0, 82, 156, 0.4);
   
   --radius-sm: 8px;
   --radius-md: 12px;
@@ -48,12 +48,12 @@ body {
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: rgba(0, 0, 0, 0.2);
+  background: rgba(0, 0, 0, 0.05);
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(0, 0, 0, 0.15);
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.25);
+  background: rgba(0, 0, 0, 0.25);
 }

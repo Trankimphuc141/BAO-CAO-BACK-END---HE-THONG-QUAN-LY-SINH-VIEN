@@ -14,12 +14,16 @@ export default function Sidebar({ activeTab, onTabChange, currentUser, unreadCou
 
   return (
     <aside className="sidebar">
-      <div className="sidebar-header">
-        <div className="brand-icon">
-          <i className="fa-solid fa-graduation-cap"></i>
+      <div className="sidebar-header" style={{ padding: '16px 20px' }}>
+        <div style={{
+            width: '46px', height: '36px', borderRadius: '6px',
+            background: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.3)', overflow: 'hidden', padding: '2px', flexShrink: 0
+        }}>
+          <img src="/vus_logo.png" alt="VUS" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
         </div>
         <div className="brand-text">
-          <h2>STUDENT PORTAL</h2>
+          <h2 style={{ background: 'linear-gradient(to right, #fff, #93c5fd)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', fontWeight: 800 }}>VUS PORTAL</h2>
           <span>Cổng Thông Tin Sinh Viên</span>
         </div>
       </div>

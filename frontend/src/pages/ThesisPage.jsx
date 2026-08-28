@@ -6,17 +6,28 @@ export default function ThesisPage({ currentUser, onOpenAuth }) {
   const [title, setTitle] = useState('');
   const [milestone, setMilestone] = useState('M1');
   const [desc, setDesc] = useState('');
+  const [advisorId, setAdvisorId] = useState('');
+  const [advisors, setAdvisors] = useState([]);
   const [loading, setLoading] = useState(false);
   const fileInputRef = useRef(null);
 
   useEffect(() => {
     loadTheses();
+    loadAdvisors();
   }, [currentUser]);
 
   const loadTheses = async () => {
     const res = await api.getTheses();
     if (res.success && res.data) {
       setTheses(res.data);
+    }
+  };
+
+  const loadAdvisors = async () => {
+    const res = await api.getAdvisors();
+    if (res.success && res.data) {
+      setAdvisors(res.data);
+      if (res.data.length > 0) setAdvisorId(res.data[0]._id);
     }
   };
 
@@ -30,9 +41,16 @@ export default function ThesisPage({ currentUser, onOpenAuth }) {
     setLoading(true);
     const fileName = fileInputRef.current?.files?.[0]?.name || 'BaoCao_LuanVan.pdf';
 
+    if (!advisorId) {
+      alert('❌ Vui lòng chọn giảng viên hướng dẫn');
+      setLoading(false);
+      return;
+    }
+
     const res = await api.registerThesis({
       topicTitle: title.trim(),
       description: `[${milestone} - File: ${fileName}] ${desc.trim()}`,
+      advisorId,
       studentId: currentUser.id
     });
 
@@ -42,6 +60,7 @@ export default function ThesisPage({ currentUser, onOpenAuth }) {
       alert(`✅ Nộp báo cáo đồ án / luận văn thành công (${milestone})! Giảng viên hướng dẫn sẽ tiến hành duyệt.`);
       setTitle('');
       setDesc('');
+      setAdvisorId(advisors.length > 0 ? advisors[0]._id : '');
       if (fileInputRef.current) fileInputRef.current.value = '';
       loadTheses();
     } else {
@@ -68,6 +87,22 @@ export default function ThesisPage({ currentUser, onOpenAuth }) {
               onChange={(e) => setTitle(e.target.value)}
               required
             />
+          </div>
+
+          <div className="form-group">
+            <label>Giảng viên hướng dẫn: <span style={{ color: '#ef4444' }}>*</span></label>
+            <select
+              className="form-control"
+              value={advisorId}
+              onChange={(e) => setAdvisorId(e.target.value)}
+              required
+              style={{ color: '#111827' }}
+            >
+              <option value="">-- Chọn giảng viên hướng dẫn --</option>
+              {advisors.map(a => (
+                <option key={a._id} value={a._id}>{a.name} ({a.code || a.email})</option>
+              ))}
+            </select>
           </div>
 
           <div className="form-group">

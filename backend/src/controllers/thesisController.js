@@ -120,3 +120,13 @@ exports.updateThesisMilestoneOrScore = async (req, res) => {
         return res.status(500).json({ success: false, error: err.message });
     }
 };
+
+// 4. Lấy danh sách giảng viên có thể hướng dẫn đồ án
+exports.getAdvisors = async (req, res) => {
+    try {
+        const advisors = await User.find({ role: 'teacher' }).select('_id name code email').lean();
+        return res.status(200).json({ success: true, data: advisors });
+    } catch (err) {
+        return res.status(500).json({ success: false, error: err.message });
+    }
+};

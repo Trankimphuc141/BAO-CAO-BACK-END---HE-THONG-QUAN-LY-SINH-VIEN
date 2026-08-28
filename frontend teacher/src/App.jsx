@@ -11,6 +11,7 @@ import QRAttendance from './pages/QRAttendance';
 import NotificationCenter from './pages/NotificationCenter';
 import Profile from './pages/Profile';
 import AdminPanel from './pages/AdminPanel';
+import ThesisManagement from './pages/ThesisManagement';
 import Layout from './components/Layout';
 
 const PrivateRoute = ({ children }) => {
@@ -47,6 +48,7 @@ function App() {
                     <Route path="notifications" element={<NotificationCenter />} />
                     <Route path="profile" element={<Profile />} />
                     <Route path="admin" element={<AdminPanel />} />
+                    <Route path="thesis" element={<ThesisManagement />} />
                 </Route>
             </Routes>
         </Router>

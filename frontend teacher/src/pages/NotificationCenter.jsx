@@ -172,6 +172,7 @@ function NotificationCenter() {
                                 select fullWidth label="Gửi tới lớp học phần" required
                                 value={form.classSectionId}
                                 onChange={(e) => setForm({ ...form, classSectionId: e.target.value })}
+                                InputLabelProps={{ shrink: true }}
                             >
                                 {classSections.map(sec => (
                                     <MenuItem key={sec._id} value={sec._id}>
@@ -183,6 +184,7 @@ function NotificationCenter() {
                                 select fullWidth label="Loại thông báo"
                                 value={form.type}
                                 onChange={(e) => setForm({ ...form, type: e.target.value })}
+                                InputLabelProps={{ shrink: true }}
                             >
                                 {Object.entries(NOTIF_TYPE_META).map(([key, meta]) => (
                                     <MenuItem key={key} value={key}>{meta.label}</MenuItem>

@@ -20,7 +20,8 @@ import {
     Analytics as AnalyticsIcon,
     AdminPanelSettings as AdminIcon,
     Person as ProfileIcon,
-    KeyboardArrowRight
+    KeyboardArrowRight,
+    School as ThesisIcon
 } from '@mui/icons-material';
 
 const drawerWidth = 268;
@@ -44,6 +45,7 @@ function Layout(props) {
     const menuItems = [
         { text: 'Dashboard', icon: <DashboardIcon />, path: '/', exact: true },
         { text: 'Sinh Viên', icon: <PeopleIcon />, path: '/students' },
+        { text: 'Đồ Án / Luận Văn', icon: <ThesisIcon />, path: '/thesis' },
         { text: 'Nhập Điểm', icon: <GradeIcon />, path: '/grades' },
         { text: 'Điểm Danh', icon: <AttendanceIcon />, path: '/attendance/mark' },
         { text: 'Điểm Danh QR', icon: <QrIcon />, path: '/attendance/qr' },
@@ -124,7 +126,7 @@ function Layout(props) {
                             >
                                 <ListItemIcon sx={{
                                     minWidth: 38,
-                                    color: active ? '#818cf8' : 'rgba(255,255,255,0.45)',
+                                    color: active ? '#a5b4fc' : '#ffffff',
                                     transition: 'color 0.2s'
                                 }}>
                                     {item.icon}
@@ -132,12 +134,16 @@ function Layout(props) {
                                 <ListItemText
                                     primary={item.text}
                                     primaryTypographyProps={{
-                                        fontWeight: active ? 700 : 500,
-                                        fontSize: '0.875rem',
-                                        color: active ? 'white' : 'rgba(255,255,255,0.6)'
+                                        sx: {
+                                            fontWeight: active ? 700 : 600,
+                                            fontSize: '0.9rem',
+                                            color: '#ffffff',
+                                            letterSpacing: '0.01em',
+                                            textShadow: '0 1px 3px rgba(0,0,0,0.4)'
+                                        }
                                     }}
                                 />
-                                {active && <KeyboardArrowRight sx={{ color: '#818cf8', fontSize: 18 }} />}
+                                {active && <KeyboardArrowRight sx={{ color: '#ffffff', fontSize: 18 }} />}
                             </ListItemButton>
                         </ListItem>
                     );
@@ -170,12 +176,20 @@ function Layout(props) {
                                             }
                                         }}
                                     >
-                                        <ListItemIcon sx={{ minWidth: 38, color: active ? '#f87171' : 'rgba(239,68,68,0.55)', transition: 'color 0.2s' }}>
+                                        <ListItemIcon sx={{ minWidth: 38, color: active ? '#f87171' : '#f87171', transition: 'color 0.2s' }}>
                                             {item.icon}
                                         </ListItemIcon>
                                         <ListItemText
                                             primary={item.text}
-                                            primaryTypographyProps={{ fontWeight: active ? 700 : 500, fontSize: '0.875rem', color: active ? '#fca5a5' : 'rgba(239,68,68,0.65)' }}
+                                            primaryTypographyProps={{
+                                                sx: {
+                                                    fontWeight: 600,
+                                                    fontSize: '0.9rem',
+                                                    color: '#ffffff',
+                                                    letterSpacing: '0.01em',
+                                                    textShadow: '0 1px 3px rgba(0,0,0,0.4)'
+                                                }
+                                            }}
                                         />
                                         {active && <KeyboardArrowRight sx={{ color: '#f87171', fontSize: 18 }} />}
                                     </ListItemButton>
@@ -196,12 +210,20 @@ function Layout(props) {
                         '&:hover': { bgcolor: 'rgba(239,68,68,0.15)' }
                     }}
                 >
-                    <ListItemIcon sx={{ minWidth: 38, color: 'rgba(239,68,68,0.7)' }}>
+                    <ListItemIcon sx={{ minWidth: 38, color: '#f87171' }}>
                         <LogoutIcon />
                     </ListItemIcon>
                     <ListItemText
                         primary="Đăng xuất"
-                        primaryTypographyProps={{ fontSize: '0.875rem', color: 'rgba(239,68,68,0.7)', fontWeight: 600 }}
+                        primaryTypographyProps={{
+                            sx: {
+                                fontSize: '0.9rem',
+                                color: '#fca5a5',
+                                fontWeight: 700,
+                                letterSpacing: '0.01em',
+                                textShadow: '0 1px 3px rgba(0,0,0,0.4)'
+                            }
+                        }}
                     />
                 </ListItemButton>
             </Box>
@@ -297,6 +319,7 @@ function Layout(props) {
                 sx={{
                     flexGrow: 1,
                     p: { xs: 2, sm: 3 },
+                    pt: { xs: 10, sm: 11 }, // Clean spacing under fixed AppBar
                     width: { sm: `calc(100% - ${drawerWidth}px)` },
                     minHeight: '100vh',
                     bgcolor: 'background.default',
@@ -304,7 +327,6 @@ function Layout(props) {
                     maxWidth: '100%'
                 }}
             >
-                <Toolbar />
                 <Outlet />
             </Box>
         </Box>

@@ -107,7 +107,7 @@ export default function ProfilePage({ currentUser, onAvatarUpdated }) {
             </button>
           </div>
 
-          <h3 style={{ fontSize: '16px', color: '#fff' }}>{student?.name || '-'}</h3>
+          <h3 style={{ fontSize: '16px', color: 'var(--text-main)' }}>{student?.name || '-'}</h3>
           <p style={{ fontSize: '12px', color: '#60a5fa', fontWeight: 600 }}>Mã SV: {student?.code || '-'}</p>
         </div>
 
@@ -181,19 +181,19 @@ export default function ProfilePage({ currentUser, onAvatarUpdated }) {
                     <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Học kỳ:</span>
                     <select 
                       className="form-control" 
-                      style={{ padding: '4px 8px', fontSize: '12px', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', borderRadius: '6px', width: '150px' }}
+                      style={{ padding: '4px 8px', fontSize: '12px', background: '#ffffff', border: '1px solid var(--border-color)', color: 'var(--text-main)', borderRadius: '6px', width: '150px' }}
                       value={selectedSemester}
                       onChange={(e) => setSelectedSemester(e.target.value)}
                     >
                       {semesters.map(sem => (
-                        <option key={sem} value={sem} style={{ background: '#1e293b', color: '#fff' }}>{sem}</option>
+                        <option key={sem} value={sem} style={{ background: '#ffffff', color: 'var(--text-main)' }}>{sem}</option>
                       ))}
                     </select>
                   </div>
                 </div>
 
                 {/* Semester Summary */}
-                <div style={{ display: 'flex', gap: '15px', padding: '10px 14px', background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid var(--border-color)', fontSize: '12px', color: 'var(--text-light)' }}>
+                <div style={{ display: 'flex', gap: '15px', padding: '10px 14px', background: 'var(--bg-dark)', borderBottom: '1px solid var(--border-color)', fontSize: '12px', color: 'var(--text-light)' }}>
                   <div>GPA Học Kỳ (Hệ 4): <strong style={{ color: '#60a5fa' }}>{gpa4}</strong></div>
                   <div style={{ borderLeft: '1px solid var(--border-color)', paddingLeft: '15px' }}>GPA Học Kỳ (Hệ 10): <strong style={{ color: '#34d399' }}>{gpa10}</strong></div>
                   <div style={{ borderLeft: '1px solid var(--border-color)', paddingLeft: '15px' }}>Số TC Đăng Ký: <strong>{totalCredits}</strong></div>
@@ -282,7 +282,7 @@ export default function ProfilePage({ currentUser, onAvatarUpdated }) {
                   key={a._id}
                   style={{
                     padding: '12px 14px',
-                    background: 'rgba(255,255,255,0.03)',
+                    background: 'var(--bg-dark)',
                     border: '1px solid var(--border-color)',
                     borderRadius: '8px'
                   }}
@@ -295,7 +295,7 @@ export default function ProfilePage({ currentUser, onAvatarUpdated }) {
                       <i className="fa-regular fa-clock"></i> {a.date}
                     </span>
                   </div>
-                  <h4 style={{ fontSize: '13.5px', color: '#fff', marginBottom: '4px' }}>{a.title}</h4>
+                  <h4 style={{ fontSize: '13.5px', color: 'var(--text-main)', marginBottom: '4px' }}>{a.title}</h4>
                   <p style={{ fontSize: '12px', color: 'var(--text-muted)', lineHeight: '1.45' }}>{a.content}</p>
                 </div>
               ))

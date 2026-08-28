@@ -115,7 +115,7 @@ export default function Dashboard({ currentUser }) {
                   key={a._id}
                   style={{
                     padding: '12px 14px',
-                    background: 'rgba(255,255,255,0.03)',
+                    background: 'var(--bg-dark)',
                     border: '1px solid var(--border-color)',
                     borderRadius: '8px'
                   }}
@@ -137,7 +137,7 @@ export default function Dashboard({ currentUser }) {
                       <i className="fa-regular fa-clock"></i> {a.date}
                     </span>
                   </div>
-                  <h4 style={{ fontSize: '13.5px', color: '#fff', marginBottom: '4px' }}>{a.title}</h4>
+                  <h4 style={{ fontSize: '13.5px', color: 'var(--text-main)', marginBottom: '4px' }}>{a.title}</h4>
                   <p style={{ fontSize: '12px', color: 'var(--text-muted)', lineHeight: '1.45', marginBottom: '6px' }}>
                     {a.content}
                   </p>
@@ -167,8 +167,8 @@ export default function Dashboard({ currentUser }) {
                   key={c._id}
                   style={{
                     padding: '12px 14px',
-                    background: 'rgba(59, 130, 246, 0.08)',
-                    border: '1px solid rgba(59, 130, 246, 0.3)',
+                    background: 'rgba(59, 130, 246, 0.05)',
+                    border: '1px solid rgba(59, 130, 246, 0.2)',
                     borderRadius: '8px'
                   }}
                 >
@@ -180,7 +180,7 @@ export default function Dashboard({ currentUser }) {
                       <i className="fa-solid fa-location-dot"></i> {c.room}
                     </span>
                   </div>
-                  <h4 style={{ fontSize: '13px', color: '#fff', marginBottom: '4px' }}>{c.course?.name}</h4>
+                  <h4 style={{ fontSize: '13px', color: 'var(--text-main)', marginBottom: '4px' }}>{c.course?.name}</h4>
                   <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
                     <i className="fa-solid fa-user-tie"></i> GV: {c.teacher?.name || '-'} | Tiết {c.startPeriod || 1}-
                     {c.endPeriod || 3}

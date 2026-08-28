@@ -26,6 +26,17 @@ app.use(express.static(staticPath));
 // API Routes
 app.use('/api', routes);
 
+// Seeding endpoint
+app.get('/api/seed', async (req, res) => {
+    try {
+        const seedDB = require('./utils/seedData');
+        await seedDB();
+        res.json({ success: true, message: 'Database seeded successfully' });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
 // Base route test
 app.get('/api/health', (req, res) => {
     res.json({

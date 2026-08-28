@@ -64,6 +64,31 @@ const theme = createTheme({
                 },
             },
         },
+        MuiDrawer: {
+            styleOverrides: {
+                paper: {
+                    backgroundImage: 'none',
+                    '& .MuiListItemText-primary': {
+                        color: '#ffffff !important',
+                        fontWeight: 600,
+                        fontSize: '0.9rem',
+                    },
+                    '& .MuiListItemIcon-root': {
+                        color: '#ffffff !important',
+                    },
+                    '& .MuiTypography-root': {
+                        color: '#ffffff',
+                    },
+                },
+            },
+        },
+        MuiListItemText: {
+            styleOverrides: {
+                primary: {
+                    color: 'inherit',
+                },
+            },
+        },
     },
 });
 

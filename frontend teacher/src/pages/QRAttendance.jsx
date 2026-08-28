@@ -158,6 +158,7 @@ function QRAttendance() {
                                 value={selectedSection}
                                 onChange={(e) => setSelectedSection(e.target.value)}
                                 helperText={currentSection ? `${currentSection.course?.name}` : ''}
+                                InputLabelProps={{ shrink: true }}
                                 sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
                             >
                                 {classSections.map(s => (
@@ -192,6 +193,7 @@ function QRAttendance() {
                                 select fullWidth label="Thời hạn hiệu lực QR"
                                 value={expiresInMinutes}
                                 onChange={(e) => setExpiresInMinutes(parseInt(e.target.value))}
+                                InputLabelProps={{ shrink: true }}
                                 sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
                             >
                                 {[2, 5, 10, 15, 20, 30].map(m => (

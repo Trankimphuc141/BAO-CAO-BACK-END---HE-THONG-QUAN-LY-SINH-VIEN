@@ -182,6 +182,7 @@ function GradeManagement() {
                             select fullWidth label="Chọn lớp học phần"
                             value={selectedSection}
                             onChange={(e) => setSelectedSection(e.target.value)}
+                            InputLabelProps={{ shrink: true }}
                             sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
                         >
                             {classSections.map(sec => (

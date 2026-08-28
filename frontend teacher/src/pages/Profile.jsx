@@ -324,12 +324,16 @@ function Profile() {
                                     <MenuItem value="Nữ">Nữ</MenuItem>
                                     <MenuItem value="Khác">Khác</MenuItem>
                                 </TextField>
-                                <TextField
-                                    fullWidth label="Ngày sinh" type="date" value={dateOfBirth}
-                                    onChange={(e) => setDateOfBirth(e.target.value)}
-                                    InputLabelProps={{ shrink: true }}
-                                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2.5 } }}
-                                />
+                                <Box>
+                                    <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', mb: 0.5, display: 'block', ml: 0.5 }}>
+                                        Ngày sinh
+                                    </Typography>
+                                    <TextField
+                                        fullWidth type="date" value={dateOfBirth}
+                                        onChange={(e) => setDateOfBirth(e.target.value)}
+                                        sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2.5 } }}
+                                    />
+                                </Box>
                                 {/* Avatar URL — spans full width on its own row */}
                                 <TextField
                                     fullWidth

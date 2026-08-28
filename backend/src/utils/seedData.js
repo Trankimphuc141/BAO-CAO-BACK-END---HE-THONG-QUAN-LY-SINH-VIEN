@@ -72,8 +72,8 @@ const seedDB = async () => {
             },
             {
                 code: 'SV001',
-                name: 'Trần Phạm Kim Phúc',
-                email: 'phuc.tpk@student.edu.vn',
+                name: 'Nguyễn Văn An',
+                email: 'an.nv@student.edu.vn',
                 password: '123',
                 role: 'student',
                 department: 'Công nghệ thông tin',

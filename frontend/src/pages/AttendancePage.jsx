@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { api } from '../services/api';
 
 export default function AttendancePage({ currentUser }) {
@@ -7,9 +7,18 @@ export default function AttendancePage({ currentUser }) {
   const [qrTokenInput, setQrTokenInput] = useState('');
   const [checkingIn, setCheckingIn] = useState(false);
   const [checkInMessage, setCheckInMessage] = useState(null);
+  const [isScanning, setIsScanning] = useState(false);
+
+  const qrScannerRef = useRef(null);
 
   useEffect(() => {
     loadAttendance();
+    return () => {
+      // Clean up scanner on unmount to prevent camera light leakage
+      if (qrScannerRef.current) {
+        qrScannerRef.current.stop().catch(console.error);
+      }
+    };
   }, [currentUser]);
 
   const loadAttendance = async () => {
@@ -40,7 +49,7 @@ export default function AttendancePage({ currentUser }) {
   };
 
   const handleQRCheckIn = async (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
     if (!qrTokenInput.trim()) return;
 
     setCheckingIn(true);
@@ -61,7 +70,83 @@ export default function AttendancePage({ currentUser }) {
     }
   };
 
-  // Calculate overall attendance stats
+  const startScanner = async () => {
+    setIsScanning(true);
+    setCheckInMessage(null);
+    
+    // Allow DOM to update and render #qr-reader element
+    setTimeout(async () => {
+      try {
+        if (!window.Html5Qrcode) {
+          throw new Error("Thư viện quét mã QR chưa được tải.");
+        }
+        
+        const html5QrCode = new window.Html5Qrcode("qr-reader");
+        qrScannerRef.current = html5QrCode;
+
+        await html5QrCode.start(
+          { facingMode: "environment" }, // Camera sau điện thoại / webcam máy tính
+          {
+            fps: 10,
+            qrbox: (width, height) => {
+              const minSize = Math.min(width, height);
+              const qrboxSize = Math.floor(minSize * 0.7);
+              return { width: qrboxSize, height: qrboxSize };
+            }
+          },
+          (decodedText) => {
+            // Quét thành công
+            setQrTokenInput(decodedText);
+            stopScanner();
+            handleAutoCheckIn(decodedText);
+          },
+          () => {
+            // Bỏ qua lỗi quét liên tục khi không tìm thấy mã
+          }
+        );
+      } catch (err) {
+        console.error("Camera scan start error:", err);
+        setCheckInMessage({ 
+          type: 'danger', 
+          text: '📷 Không thể khởi động máy ảnh. Vui lòng cấp quyền camera cho trình duyệt và tải lại trang.' 
+        });
+        setIsScanning(false);
+      }
+    }, 150);
+  };
+
+  const stopScanner = async () => {
+    if (qrScannerRef.current) {
+      try {
+        await qrScannerRef.current.stop();
+      } catch (e) {
+        console.error("Error stopping scanner:", e);
+      }
+      qrScannerRef.current = null;
+    }
+    setIsScanning(false);
+  };
+
+  const handleAutoCheckIn = async (token) => {
+    setCheckingIn(true);
+    setCheckInMessage(null);
+    try {
+      const res = await api.qrCheckIn(token);
+      if (res.success) {
+        setCheckInMessage({ type: 'success', text: res.message || '🎉 Điểm danh tự động qua QR thành công!' });
+        setQrTokenInput('');
+        loadAttendance();
+      } else {
+        setCheckInMessage({ type: 'danger', text: res.message || '❌ Điểm danh tự động thất bại' });
+      }
+    } catch (err) {
+      setCheckInMessage({ type: 'danger', text: 'Có lỗi xảy ra khi tự động gửi yêu cầu' });
+    } finally {
+      setCheckingIn(false);
+    }
+  };
+
+  // Calculate overall stats
   const totalPresent = rows.reduce((sum, r) => sum + r.presentCount, 0);
   const totalSessions = rows.reduce((sum, r) => sum + r.totalSessionsDone, 0);
   const averageAttendanceRate = totalSessions > 0 ? ((totalPresent / totalSessions) * 100).toFixed(1) : '100';
@@ -70,38 +155,75 @@ export default function AttendancePage({ currentUser }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
       
       {/* QR Check-In panel */}
-      <div className="glass-panel" style={{ background: 'linear-gradient(135deg, rgba(79, 70, 229, 0.15) 0%, rgba(124, 58, 237, 0.05) 100%)', border: '1px solid rgba(124, 58, 237, 0.2)' }}>
+      <div className="glass-panel" style={{ background: 'linear-gradient(135deg, rgba(0, 82, 156, 0.08) 0%, rgba(220, 38, 38, 0.02) 100%)', border: '1px solid rgba(0, 82, 156, 0.2)' }}>
         <div className="panel-header">
           <h3>
-            <i className="fa-solid fa-qrcode" style={{ color: '#a78bfa' }}></i> Sinh viên: Tự điểm danh bằng QR Code / Token
+            <i className="fa-solid fa-qrcode" style={{ color: 'var(--primary)' }}></i> Sinh viên: Điểm danh bằng Mã QR / Nhập Token
           </h3>
         </div>
         <div style={{ padding: '10px 0' }}>
           <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '16px' }}>
-            Nhập Token hiển thị dưới mã QR của giảng viên trên màn chiếu lớp học để tiến hành tự động điểm danh.
+            Sử dụng camera để quét mã QR hoặc nhập thủ công mã Token hiển thị trên màn hình giảng viên để điểm danh.
           </p>
+
+          {/* Camera Scanning Window */}
+          {isScanning && (
+            <div style={{ 
+              display: 'flex', 
+              flexDirection: 'column', 
+              alignItems: 'center', 
+              background: 'var(--bg-dark)', 
+              padding: '16px', 
+              borderRadius: '12px',
+              border: '1px dashed var(--primary)',
+              marginBottom: '20px',
+              position: 'relative'
+            }}>
+              <div id="qr-reader" style={{ width: '100%', maxWidth: '350px', borderRadius: '8px', overflow: 'hidden' }}></div>
+              <button 
+                type="button" 
+                className="btn btn-secondary btn-sm" 
+                onClick={stopScanner}
+                style={{ marginTop: '12px', background: '#dc2626', color: '#fff', border: 'none' }}
+              >
+                <i className="fa-solid fa-video-slash"></i> Tắt máy ảnh
+              </button>
+            </div>
+          )}
 
           <form onSubmit={handleQRCheckIn} style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
             <input
               type="text"
-              placeholder="Nhập mã token điểm danh (VD: 3f8a9...)"
+              placeholder={isScanning ? "Đang quét mã QR qua camera..." : "Nhập mã token điểm danh..."}
               className="form-control"
-              style={{ flex: 1, minWidth: '250px', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff' }}
+              style={{ flex: 1, minWidth: '250px', background: '#ffffff', border: '1px solid var(--border-color)', color: '#111827' }}
               value={qrTokenInput}
               onChange={(e) => setQrTokenInput(e.target.value)}
-              disabled={checkingIn}
+              disabled={checkingIn || isScanning}
             />
-            <button className="btn btn-primary" type="submit" disabled={checkingIn || !qrTokenInput.trim()}>
+            
+            <button className="btn btn-primary" type="submit" disabled={checkingIn || isScanning || !qrTokenInput.trim()}>
               {checkingIn ? (
                 <>
-                  <i className="fa-solid fa-spinner fa-spin"></i> Đang xử lý...
+                  <i className="fa-solid fa-spinner fa-spin"></i> Đang điểm danh...
                 </>
               ) : (
                 <>
-                  <i className="fa-solid fa-circle-check"></i> Xác nhận điểm danh
+                  <i className="fa-solid fa-circle-check"></i> Xác nhận mã
                 </>
               )}
             </button>
+
+            {!isScanning && (
+              <button 
+                className="btn btn-secondary" 
+                type="button" 
+                onClick={startScanner}
+                style={{ background: 'var(--primary)', color: '#fff', border: 'none' }}
+              >
+                <i className="fa-solid fa-camera"></i> Quét mã QR
+              </button>
+            )}
           </form>
 
           {checkInMessage && (
@@ -111,9 +233,9 @@ export default function AttendancePage({ currentUser }) {
                 padding: '10px 14px', 
                 borderRadius: '8px', 
                 fontSize: '13px',
-                background: checkInMessage.type === 'success' ? 'rgba(52, 211, 153, 0.15)' : 'rgba(239, 68, 68, 0.15)',
-                border: checkInMessage.type === 'success' ? '1px solid rgba(52, 211, 153, 0.4)' : '1px solid rgba(239, 68, 68, 0.4)',
-                color: checkInMessage.type === 'success' ? '#34d399' : '#f87171'
+                background: checkInMessage.type === 'success' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(220, 38, 38, 0.1)',
+                border: checkInMessage.type === 'success' ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid rgba(220, 38, 38, 0.3)',
+                color: checkInMessage.type === 'success' ? '#059669' : '#dc2626'
               }}
             >
               {checkInMessage.text}
@@ -127,41 +249,41 @@ export default function AttendancePage({ currentUser }) {
         
         {/* Attendance Rate Circle */}
         <div className="glass-panel" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '30px 20px' }}>
-          <h4 style={{ fontSize: '14px', color: 'var(--text-light)', marginBottom: '20px' }}>TỶ LỆ CHUYÊN CẦN CHUNG</h4>
+          <h4 style={{ fontSize: '13px', color: 'var(--text-light)', marginBottom: '20px', fontWeight: 700 }}>TỶ LỆ CHUYÊN CẦN CHUNG</h4>
           
           <div style={{
             position: 'relative',
             width: '140px',
             height: '140px',
             borderRadius: '50%',
-            background: `conic-gradient(#10b981 ${averageAttendanceRate}%, rgba(255,255,255,0.05) ${averageAttendanceRate}% 100%)`,
+            background: `conic-gradient(#059669 ${averageAttendanceRate}%, rgba(0,0,0,0.06) ${averageAttendanceRate}% 100%)`,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            boxShadow: '0 0 20px rgba(16, 185, 129, 0.2)'
+            boxShadow: '0 4px 15px rgba(0, 0, 0, 0.05)'
           }}>
             <div style={{
               width: '116px',
               height: '116px',
               borderRadius: '50%',
-              background: '#0f172a',
+              background: 'var(--bg-card)',
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
               justifyContent: 'center'
             }}>
-              <span style={{ fontSize: '26px', fontWeight: 800, color: '#34d399' }}>{averageAttendanceRate}%</span>
+              <span style={{ fontSize: '26px', fontWeight: 800, color: '#059669' }}>{averageAttendanceRate}%</span>
               <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Mặt / Tổng số</span>
             </div>
           </div>
 
           <div style={{ marginTop: '24px', display: 'flex', gap: '15px', fontSize: '12px' }}>
             <div>
-              <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', background: '#34d399', marginRight: '6px' }}></span>
+              <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', background: '#059669', marginRight: '6px' }}></span>
               Có mặt: {totalPresent}
             </div>
             <div>
-              <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', background: 'rgba(255,255,255,0.2)', marginRight: '6px' }}></span>
+              <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', background: 'rgba(0,0,0,0.15)', marginRight: '6px' }}></span>
               Tổng buổi: {totalSessions}
             </div>
           </div>
@@ -212,17 +334,17 @@ export default function AttendancePage({ currentUser }) {
                         </div>
                       </td>
                       <td>
-                        <span style={{ color: '#34d399', fontWeight: 600 }}>{row.presentCount}</span>
+                        <span style={{ color: '#059669', fontWeight: 600 }}>{row.presentCount}</span>
                       </td>
                       <td>
-                        <span style={{ color: '#fbbf24' }}>{row.lateCount}</span>
+                        <span style={{ color: '#d97706' }}>{row.lateCount}</span>
                       </td>
                       <td>{row.excusedCount}</td>
                       <td>
-                        <span style={{ color: '#f87171', fontWeight: 600 }}>{row.unexcusedCount}</span>
+                        <span style={{ color: '#dc2626', fontWeight: 600 }}>{row.unexcusedCount}</span>
                       </td>
                       <td>
-                        <strong style={{ color: row.absencePercentage > 20 ? '#f87171' : 'inherit' }}>{row.absencePercentage}%</strong>
+                        <strong style={{ color: row.absencePercentage > 20 ? '#dc2626' : 'inherit' }}>{row.absencePercentage}%</strong>
                       </td>
                       <td>
                         <span className={`badge ${row.isBannedFromExam ? 'badge-danger' : 'badge-success'}`}>

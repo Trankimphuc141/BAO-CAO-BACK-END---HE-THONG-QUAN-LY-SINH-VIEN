@@ -52,7 +52,7 @@ export default function SurveyPage() {
                     {s.isOpen ? 'Đang mở' : 'Đã đóng'}
                   </span>
                 </div>
-                <h3 style={{ fontSize: '14px', color: '#fff', marginBottom: '8px' }}>{s.title}</h3>
+                <h3 style={{ fontSize: '14px', color: 'var(--text-main)', marginBottom: '8px' }}>{s.title}</h3>
                 <p style={{ fontSize: '12.5px', color: 'var(--text-muted)', marginBottom: '12px' }}>
                   <i className="fa-solid fa-chalkboard-user"></i> Giảng viên: <strong>{s.teacher?.name}</strong>
                 </p>

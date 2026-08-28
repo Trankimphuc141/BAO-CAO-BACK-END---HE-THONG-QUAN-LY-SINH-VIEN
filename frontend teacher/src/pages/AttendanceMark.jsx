@@ -118,6 +118,7 @@ function AttendanceMark() {
                     <Grid item xs={12} sm={5}>
                         <TextField select fullWidth label="Lớp học phần" value={selectedSection} onChange={(e) => handleSectionChange(e.target.value)}
                             helperText={sectionInfo ? `${sectionInfo.course?.name} — Phòng: ${sectionInfo.room}` : ''}
+                            InputLabelProps={{ shrink: true }}
                             sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}>
                             {classSections.map(sec => (
                                 <MenuItem key={sec._id} value={sec._id}>
@@ -137,10 +138,14 @@ function AttendanceMark() {
                             sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }} />
                     </Grid>
                     <Grid item xs={6} sm={3}>
-                        <TextField type="date" fullWidth label="Ngày điểm danh" value={date}
-                            onChange={(e) => setDate(e.target.value)}
-                            InputLabelProps={{ shrink: true }}
-                            sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }} />
+                        <Box>
+                            <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', mb: 0.5, display: 'block', ml: 0.5 }}>
+                                Ngày điểm danh
+                            </Typography>
+                            <TextField type="date" fullWidth value={date}
+                                onChange={(e) => setDate(e.target.value)}
+                                sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }} />
+                        </Box>
                     </Grid>
                 </Grid>
             </Paper>
@@ -219,7 +224,19 @@ function AttendanceMark() {
                                                     size="small" variant="standard" placeholder="Nhập ghi chú..."
                                                     value={records[student._id]?.note || ''}
                                                     onChange={(e) => setNote(student._id, e.target.value)}
-                                                    sx={{ minWidth: 160 }}
+                                                    sx={{
+                                                        minWidth: 160,
+                                                        '& .MuiInputBase-input': {
+                                                            color: '#111827 !important',
+                                                            fontSize: '0.82rem',
+                                                            WebkitTextFillColor: '#111827',
+                                                        },
+                                                        '& .MuiInputBase-input::placeholder': {
+                                                            color: '#6b7280',
+                                                            opacity: 1,
+                                                            WebkitTextFillColor: '#6b7280',
+                                                        },
+                                                    }}
                                                 />
                                             </TableCell>
                                         </TableRow>

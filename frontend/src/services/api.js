@@ -137,6 +137,10 @@ class ApiService {
     return await this.request('/theses');
   }
 
+  async getAdvisors() {
+    return await this.request('/theses/advisors');
+  }
+
   async registerThesis(data) {
     return await this.request('/theses', {
       method: 'POST',

@@ -82,9 +82,16 @@ exports.login = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Vui lòng cung cấp Mã sinh viên và Mật khẩu' });
         }
 
-        const user = await User.findOne({ code: code.trim().toUpperCase() });
+        const trimmedCode = code.trim();
+        // Tìm kiếm theo mã (không phân biệt hoa/thường) hoặc email
+        const user = await User.findOne({
+            $or: [
+                { code: { $regex: new RegExp(`^${trimmedCode}$`, 'i') } },
+                { email: trimmedCode.toLowerCase() }
+            ]
+        });
         if (!user) {
-            return res.status(401).json({ success: false, message: 'Mã sinh viên không tồn tại trong hệ thống' });
+            return res.status(401).json({ success: false, message: 'Tài khoản không tồn tại trong hệ thống' });
         }
 
         const isMatch = await user.comparePassword(password);

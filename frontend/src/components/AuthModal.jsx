@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import { api } from '../services/api';
 
 export default function AuthModal({ isOpen, onClose, onLoginSuccess }) {
-  const [code, setCode] = useState('SV001');
-  const [password, setPassword] = useState('123');
+  const [code, setCode] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
   if (!isOpen) return null;

@@ -95,9 +95,11 @@ export default function App() {
       <div className="bg-glow-orb orb-2"></div>
 
       <div id="app-container">
-        <Sidebar activeTab={activeTab} onTabChange={handleTabChange} currentUser={currentUser} unreadCount={unreadCount} />
+        {currentUser && (
+          <>
+            <Sidebar activeTab={activeTab} onTabChange={handleTabChange} currentUser={currentUser} unreadCount={unreadCount} />
 
-        <div className="main-wrapper">
+            <div className="main-wrapper">
           <Header
             activeTab={activeTab}
             currentUser={currentUser}
@@ -120,10 +122,12 @@ export default function App() {
             )}
           </main>
         </div>
+          </>
+        )}
       </div>
 
       <AuthModal
-        isOpen={authModalOpen}
+        isOpen={authModalOpen || !currentUser}
         onClose={() => setAuthModalOpen(false)}
         onLoginSuccess={(user) => {
           setCurrentUser(user);

@@ -132,7 +132,6 @@ export default function ProfilePage({ currentUser, onAvatarUpdated }) {
                 }}>{fmt}</span>
               ))}
             </div>
-            <div style={{ fontSize: '10px', color: 'var(--text-light)', marginTop: '4px' }}>Tối đa 5MB</div>
           </div>
 
           <h3 style={{ fontSize: '16px', color: 'var(--text-main)' }}>{student?.name || '-'}</h3>

@@ -3,22 +3,22 @@ const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
 class ApiService {
   constructor() {
-    this.token = localStorage.getItem('token') || '';
-    this.currentUser = JSON.parse(localStorage.getItem('currentUser') || 'null');
+    this.token = sessionStorage.getItem('token') || '';
+    this.currentUser = JSON.parse(sessionStorage.getItem('currentUser') || 'null');
   }
 
   setToken(token, user) {
     this.token = token;
     this.currentUser = user;
-    localStorage.setItem('token', token);
-    localStorage.setItem('currentUser', JSON.stringify(user));
+    sessionStorage.setItem('token', token);
+    sessionStorage.setItem('currentUser', JSON.stringify(user));
   }
 
   clearToken() {
     this.token = '';
     this.currentUser = null;
-    localStorage.removeItem('token');
-    localStorage.removeItem('currentUser');
+    sessionStorage.removeItem('token');
+    sessionStorage.removeItem('currentUser');
   }
 
   async request(endpoint, options = {}) {
@@ -64,7 +64,7 @@ class ApiService {
     });
     if (res.success && res.avatar && this.currentUser) {
       this.currentUser.avatar = res.avatar;
-      localStorage.setItem('currentUser', JSON.stringify(this.currentUser));
+      sessionStorage.setItem('currentUser', JSON.stringify(this.currentUser));
     }
     return res;
   }

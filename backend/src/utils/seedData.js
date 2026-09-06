@@ -42,7 +42,7 @@ const seedDB = async () => {
         // 1. Tạo Người dùng (Admin, Giảng viên, Sinh viên)
         const users = await User.create([
             {
-                code: 'AD001',
+                code: 'admin',
                 name: 'PGS. TS. Nguyễn Văn Quản Trị',
                 email: 'admin@university.edu.vn',
                 password: '123',

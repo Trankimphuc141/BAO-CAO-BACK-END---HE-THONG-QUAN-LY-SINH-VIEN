@@ -29,7 +29,7 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess }) {
       position: 'fixed',
       inset: 0,
       zIndex: 200,
-      background: 'linear-gradient(135deg, #0a0a1a 0%, #0d1b3e 40%, #0a1628 70%, #12052a 100%)',
+      background: 'linear-gradient(135deg, #f0f4ff 0%, #e8f0fe 50%, #f5f3ff 100%)',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
@@ -39,21 +39,21 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess }) {
       <div style={{
         position: 'absolute', top: '-150px', left: '-150px',
         width: '600px', height: '600px', borderRadius: '50%',
-        background: 'radial-gradient(circle, rgba(37,99,235,0.3) 0%, transparent 70%)',
+        background: 'radial-gradient(circle, rgba(37,99,235,0.12) 0%, transparent 70%)',
         filter: 'blur(60px)', animation: 'authOrb1 8s ease-in-out infinite alternate',
         pointerEvents: 'none',
       }} />
       <div style={{
         position: 'absolute', bottom: '-200px', right: '-150px',
         width: '700px', height: '700px', borderRadius: '50%',
-        background: 'radial-gradient(circle, rgba(139,92,246,0.25) 0%, transparent 70%)',
+        background: 'radial-gradient(circle, rgba(139,92,246,0.1) 0%, transparent 70%)',
         filter: 'blur(80px)', animation: 'authOrb2 10s ease-in-out infinite alternate',
         pointerEvents: 'none',
       }} />
       <div style={{
         position: 'absolute', top: '40%', left: '60%',
         width: '400px', height: '400px', borderRadius: '50%',
-        background: 'radial-gradient(circle, rgba(6,182,212,0.15) 0%, transparent 70%)',
+        background: 'radial-gradient(circle, rgba(6,182,212,0.08) 0%, transparent 70%)',
         filter: 'blur(50px)', animation: 'authOrb1 12s ease-in-out infinite alternate-reverse',
         pointerEvents: 'none',
       }} />
@@ -74,21 +74,21 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess }) {
         .auth-input {
           width: 100%;
           padding: 13px 16px;
-          background: rgba(255,255,255,0.06);
-          border: 1px solid rgba(255,255,255,0.12);
+          background: #ffffff;
+          border: 1.5px solid #e2e8f0;
           border-radius: 10px;
-          color: #fff;
+          color: #0f172a;
           font-size: 14px;
           font-family: inherit;
           transition: all 0.25s ease;
           box-sizing: border-box;
           outline: none;
         }
-        .auth-input::placeholder { color: rgba(255,255,255,0.3); }
+        .auth-input::placeholder { color: #94a3b8; }
         .auth-input:focus {
           border-color: #3b82f6;
-          background: rgba(59,130,246,0.08);
-          box-shadow: 0 0 0 3px rgba(59,130,246,0.2);
+          background: #fafbff;
+          box-shadow: 0 0 0 3px rgba(59,130,246,0.12);
         }
         .auth-btn {
           width: 100%;
@@ -110,7 +110,7 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess }) {
         .auth-btn:hover:not(:disabled) {
           background: linear-gradient(135deg, #1d4ed8, #6d28d9);
           transform: translateY(-1px);
-          box-shadow: 0 8px 24px rgba(37,99,235,0.4);
+          box-shadow: 0 8px 24px rgba(37,99,235,0.35);
         }
         .auth-btn:disabled { opacity: 0.7; cursor: not-allowed; }
       `}</style>
@@ -121,35 +121,36 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess }) {
         width: '100%',
         maxWidth: '420px',
         margin: '0 20px',
-        background: 'rgba(17,24,39,0.85)',
+        background: '#ffffff',
         backdropFilter: 'blur(20px)',
-        border: '1px solid rgba(255,255,255,0.1)',
+        border: '1px solid rgba(226,232,240,0.8)',
         borderRadius: '20px',
         padding: '40px 36px',
-        boxShadow: '0 25px 60px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.08)',
+        boxShadow: '0 20px 60px rgba(15,23,42,0.1), 0 4px 16px rgba(15,23,42,0.06)',
         animation: 'authFadeIn 0.4s cubic-bezier(0.16,1,0.3,1)',
       }}>
         {/* Logo & Title */}
         <div style={{ textAlign: 'center', marginBottom: '32px' }}>
           <div style={{
             width: '72px', height: '72px',
-            background: '#fff',
+            background: 'linear-gradient(135deg, #f0f4ff, #ede9fe)',
             borderRadius: '16px',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             margin: '0 auto 16px',
-            boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+            boxShadow: '0 4px 16px rgba(37,99,235,0.15)',
             overflow: 'hidden',
             padding: '8px',
+            border: '1px solid rgba(59,130,246,0.15)',
           }}>
             <img src="/vus_logo.png" alt="VUS" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
           </div>
           <h1 style={{
-            fontSize: '22px', fontWeight: 700, color: '#fff',
+            fontSize: '22px', fontWeight: 800, color: '#0f172a',
             margin: '0 0 6px', letterSpacing: '-0.3px',
           }}>
             Cổng Thông Tin Sinh Viên
           </h1>
-          <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.45)', margin: 0 }}>
+          <p style={{ fontSize: '13px', color: '#64748b', margin: 0 }}>
             Hệ thống Quản lý Sinh viên — Đăng nhập để tiếp tục
           </p>
         </div>
@@ -158,8 +159,8 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess }) {
         <form onSubmit={handleSubmit}>
           <div style={{ marginBottom: '16px' }}>
             <label style={{
-              display: 'block', fontSize: '12px', fontWeight: 600,
-              color: 'rgba(255,255,255,0.55)', marginBottom: '7px',
+              display: 'block', fontSize: '12px', fontWeight: 700,
+              color: '#475569', marginBottom: '7px',
               textTransform: 'uppercase', letterSpacing: '0.6px',
             }}>
               Mã Sinh Viên
@@ -176,8 +177,8 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess }) {
 
           <div style={{ marginBottom: '24px' }}>
             <label style={{
-              display: 'block', fontSize: '12px', fontWeight: 600,
-              color: 'rgba(255,255,255,0.55)', marginBottom: '7px',
+              display: 'block', fontSize: '12px', fontWeight: 700,
+              color: '#475569', marginBottom: '7px',
               textTransform: 'uppercase', letterSpacing: '0.6px',
             }}>
               Mật Khẩu
@@ -200,8 +201,6 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess }) {
             )}
           </button>
         </form>
-
-
       </div>
     </div>
   );

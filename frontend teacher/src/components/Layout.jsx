@@ -26,7 +26,7 @@ import {
 
 const drawerWidth = 268;
 
-const GRAD_BG = 'linear-gradient(160deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)';
+const GRAD_BG = 'linear-gradient(160deg, #312e81 0%, #3730a3 40%, #4338ca 100%)';
 
 function Layout(props) {
     const { window } = props;

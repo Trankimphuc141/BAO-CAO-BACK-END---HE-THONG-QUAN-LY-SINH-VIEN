@@ -1,11 +1,20 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+
+/* ═══════════════════════════════════════════════
+   LIGHT THEME TOKENS (Student Portal)
+═══════════════════════════════════════════════ */
 :root {
-  --bg-dark: #f8fafc;
+  --bg-dark: #f0f4f8;
   --bg-card: #ffffff;
-  --bg-card-hover: #f1f5f9;
-  --bg-surface: #ffffff;
+  --bg-card-solid: #ffffff;
+  --bg-surface: rgba(248, 250, 252, 0.9);
+  --bg-hover: rgba(59, 130, 246, 0.05);
+  --bg-active: rgba(59, 130, 246, 0.1);
+
   --primary: #2563eb;
   --primary-hover: #1d4ed8;
-  --primary-glow: rgba(37, 99, 235, 0.15);
+  --primary-glow: rgba(37, 99, 235, 0.2);
+  --primary-light: rgba(37, 99, 235, 0.08);
   --accent-purple: #7c3aed;
   --accent-cyan: #0891b2;
   --accent-green: #059669;
@@ -13,26 +22,36 @@
   --accent-rose: #e11d48;
 
   --text-main: #0f172a;
-  --text-muted: #475569;
-  --text-light: #64748b;
+  --text-sub: #334155;
+  --text-muted: #64748b;
+  --text-light: #94a3b8;
 
-  --border-color: rgba(0, 0, 0, 0.08);
-  --border-active: rgba(37, 99, 235, 0.5);
+  --border-color: rgba(15, 23, 42, 0.08);
+  --border-active: rgba(37, 99, 235, 0.4);
+  --border-subtle: rgba(15, 23, 42, 0.05);
 
+  --radius-xs: 6px;
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 16px;
+  --radius-xl: 20px;
+
+  --shadow-sm: 0 1px 4px rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.04);
+  --shadow-md: 0 4px 16px rgba(0,0,0,0.08), 0 1px 4px rgba(0,0,0,0.05);
+  --shadow-lg: 0 8px 32px rgba(0,0,0,0.1), 0 2px 8px rgba(0,0,0,0.06);
 
   --font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  --transition-fast: all 0.15s ease-out;
+  --transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-fast: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-bounce: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
+/* ═══════════════════════════════════════════════
+   RESET & BASE
+═══════════════════════════════════════════════ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { scroll-behavior: smooth; }
 
 body {
   font-family: var(--font-family);
@@ -41,21 +60,41 @@ body {
   line-height: 1.5;
   overflow-x: hidden;
   min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* Custom Scrollbar */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+/* ═══════════════════════════════════════════════
+   SCROLLBAR
+═══════════════════════════════════════════════ */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(37,99,235,0.2); border-radius: 10px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(37,99,235,0.4); }
+
+/* ═══════════════════════════════════════════════
+   ANIMATIONS
+═══════════════════════════════════════════════ */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
-::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.03);
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
-::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.12);
-  border-radius: 3px;
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to   { opacity: 1; transform: scale(1); }
 }
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.22);
+@keyframes pulseDot {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0.5); }
+  50%       { box-shadow: 0 0 0 5px rgba(239,68,68,0); }
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes shimmer {
+  0%   { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
 }
 
+.animate-in { animation: fadeUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) both; }

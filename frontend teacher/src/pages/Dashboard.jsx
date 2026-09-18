@@ -160,12 +160,13 @@ function Dashboard() {
         <Box>
             {/* Welcome Hero */}
             <Box sx={{
-                background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)',
+                background: 'linear-gradient(135deg, #4F46E5 0%, #6366F1 50%, #7C3AED 100%)',
                 borderRadius: 4, p: { xs: 3, sm: 4 }, mb: 3, color: 'white',
-                position: 'relative', overflow: 'hidden'
+                position: 'relative', overflow: 'hidden',
+                boxShadow: '0 8px 32px rgba(79,70,229,0.3)',
             }}>
-                <Box sx={{ position: 'absolute', top: -60, right: -60, width: 280, height: 280, borderRadius: '50%', background: 'radial-gradient(circle, rgba(79,70,229,0.25) 0%, transparent 70%)' }} />
-                <Box sx={{ position: 'absolute', bottom: -80, left: '40%', width: 300, height: 300, borderRadius: '50%', background: 'radial-gradient(circle, rgba(124,58,237,0.15) 0%, transparent 70%)' }} />
+                <Box sx={{ position: 'absolute', top: -60, right: -60, width: 280, height: 280, borderRadius: '50%', background: 'radial-gradient(circle, rgba(255,255,255,0.12) 0%, transparent 70%)' }} />
+                <Box sx={{ position: 'absolute', bottom: -80, left: '40%', width: 300, height: 300, borderRadius: '50%', background: 'radial-gradient(circle, rgba(255,255,255,0.08) 0%, transparent 70%)' }} />
                 <Box sx={{ position: 'relative' }}>
                     <Chip label="🎓 Hệ thống VUS" sx={{ bgcolor: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.8)', mb: 2, fontWeight: 600, border: '1px solid rgba(255,255,255,0.15)', fontSize: '0.75rem' }} />
                     <Typography variant="h4" fontWeight={800} gutterBottom sx={{ fontSize: { xs: '1.6rem', sm: '2rem' } }}>

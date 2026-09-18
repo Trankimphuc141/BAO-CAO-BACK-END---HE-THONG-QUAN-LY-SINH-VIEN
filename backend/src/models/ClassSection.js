@@ -14,6 +14,14 @@ const classSectionSchema = new mongoose.Schema({
     startPeriod: { type: Number, default: 1 },
     endPeriod: { type: Number, default: 3 },
     totalLessons: { type: Number, default: 15 }, // Tổng số buổi học
+    isOpen: { type: Boolean, default: true }, // Trạng thái mở đăng ký học phần
+    teacherApprovalStatus: { 
+        type: String, 
+        enum: ['pending', 'accepted', 'rejected'], 
+        default: 'pending' 
+    }, // Trạng thái xác nhận lịch dạy của giảng viên
+    teacherFeedback: { type: String, default: '' }, // Lời nhắn hoặc đề xuất thời gian dạy mới từ giảng viên
+    teacherResponseAt: { type: Date },
     createdAt: { type: Date, default: Date.now }
 });
 

@@ -116,22 +116,10 @@ export default function ProfilePage({ currentUser, onAvatarUpdated }) {
             <button
               className="btn btn-secondary btn-sm"
               onClick={() => fileInputRef.current?.click()}
-              style={{ fontSize: '11px', padding: '3px 10px', marginBottom: '6px' }}
+              style={{ fontSize: '11px', padding: '3px 10px' }}
             >
               <i className="fa-solid fa-upload"></i> Tải ảnh từ máy tính
             </button>
-            {/* Format badges */}
-            <div style={{ display: 'flex', gap: '4px', justifyContent: 'center', flexWrap: 'wrap' }}>
-              {['JPG', 'PNG', 'WEBP', 'GIF'].map(fmt => (
-                <span key={fmt} style={{
-                  fontSize: '9px', fontWeight: 700, padding: '1px 5px',
-                  borderRadius: '3px', letterSpacing: '0.5px',
-                  background: 'rgba(37,99,235,0.15)',
-                  border: '1px solid rgba(37,99,235,0.3)',
-                  color: '#60a5fa'
-                }}>{fmt}</span>
-              ))}
-            </div>
           </div>
 
           <h3 style={{ fontSize: '16px', color: 'var(--text-main)' }}>{student?.name || '-'}</h3>

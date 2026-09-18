@@ -1,11 +1,11 @@
-﻿import { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import axios from "../utils/axiosConfig";
 import {
-    Box, Typography, Paper, Grid, Chip, Button, Table,
+    Box, Typography, Paper, Chip, Button, Table,
     TableBody, TableCell, TableContainer, TableHead, TableRow,
     Stack, Alert, CircularProgress, Divider, Avatar, Dialog,
     DialogTitle, DialogContent, DialogActions, TextField, MenuItem,
-    Select, FormControl, InputLabel, Tooltip, alpha, Card,
+    Select, FormControl, InputLabel, Tooltip, alpha,
 } from "@mui/material";
 import {
     School as ThesisIcon,
@@ -15,17 +15,20 @@ import {
 } from "@mui/icons-material";
 
 const MILESTONE_STATUS = [
-    { value: "Chua nop", label: "Chua nop", color: "#6b7280" },
-    { value: "Da nop", label: "Da nop", color: "#3b82f6" },
-    { value: "Dang duyet", label: "Dang duyet", color: "#f59e0b" },
-    { value: "Da duyet", label: "Da duyet", color: "#10b981" },
-    { value: "Yeu cau chinh sua", label: "Yeu cau chinh sua", color: "#ef4444" },
+    { value: "Chưa nộp", label: "Chưa nộp", color: "#6b7280" },
+    { value: "Đã nộp", label: "Đã nộp", color: "#3b82f6" },
+    { value: "Đang duyệt", label: "Đang duyệt", color: "#f59e0b" },
+    { value: "Đã duyệt", label: "Đã duyệt", color: "#10b981" },
+    { value: "Yêu cầu sửa", label: "Yêu cầu chỉnh sửa", color: "#ef4444" },
 ];
 
 const msColor = (status) => {
     const map = {
-        "Chua nop": "#6b7280", "Da nop": "#3b82f6", "Dang duyet": "#f59e0b",
-        "Da duyet": "#10b981", "Yeu cau chinh sua": "#ef4444",
+        "Chưa nộp": "#6b7280", "Chua nop": "#6b7280",
+        "Đã nộp": "#3b82f6", "Da nop": "#3b82f6",
+        "Đang duyệt": "#f59e0b", "Dang duyet": "#f59e0b",
+        "Đã duyệt": "#10b981", "Da duyet": "#10b981",
+        "Yêu cầu sửa": "#ef4444", "Yêu cầu chỉnh sửa": "#ef4444", "Yeu cau chinh sua": "#ef4444",
     };
     return map[status] || "#6b7280";
 };
@@ -47,7 +50,7 @@ export default function ThesisManagement() {
             const res = await axios.get("/theses");
             if (res.data.success) setTheses(res.data.data || []);
         } catch (err) {
-            setAlert({ type: "error", msg: "Khong the tai danh sach: " + (err.message || "") });
+            setAlert({ type: "error", msg: "Không thể tải danh sách đồ án: " + (err.message || "") });
         } finally { setLoading(false); }
     };
 
@@ -55,7 +58,7 @@ export default function ThesisManagement() {
 
     const startEdit = (mIdx) => {
         const m = selected.milestones[mIdx];
-        setEditingMilestone({ milestoneIndex: mIdx, status: m.status || "Da nop", score: m.score ?? "", comment: m.comment || "" });
+        setEditingMilestone({ milestoneIndex: mIdx, status: m.status || "Đã nộp", score: m.score ?? "", comment: m.comment || "" });
     };
 
     const saveMilestone = async () => {
@@ -69,7 +72,7 @@ export default function ThesisManagement() {
                 comment: editingMilestone.comment,
             });
             if (res.data.success) {
-                setAlert({ type: "success", msg: "Cap nhat thanh cong!" });
+                setAlert({ type: "success", msg: "Cập nhật mốc tiến độ thành công!" });
                 setEditingMilestone(null);
                 setDialogOpen(false);
                 loadTheses();
@@ -82,54 +85,96 @@ export default function ThesisManagement() {
     };
 
     const total = theses.length;
-    const inProgress = theses.filter(t => t.status === "Dang thuc hien").length;
-    const done = theses.filter(t => t.status === "Hoan thanh").length;
-    const pending = theses.filter(t => t.milestones?.some(m => m.status === "Da nop")).length;
+    const inProgress = theses.filter(t => t.status === "Đang thực hiện" || t.status === "Dang thuc hien").length;
+    const done = theses.filter(t => t.status === "Đã bảo vệ" || t.status === "Hoàn thành" || t.status === "Hoan thanh").length;
+    const pending = theses.filter(t => t.milestones?.some(m => m.status === "Đã nộp" || m.status === "Da nop" || m.status === "Đang duyệt")).length;
 
     return (
         <Box>
-            <Box sx={{ mb: 4, p: 3, borderRadius: 3, background: "linear-gradient(135deg,#4f46e5 0%,#7c3aed 100%)", color: "white", boxShadow: "0 8px 28px rgba(99,102,241,0.35)" }}>
-                <Stack direction="row" alignItems="center" spacing={2} mb={1}>
-                    <ThesisIcon sx={{ fontSize: 32 }} />
-                    <Typography variant="h4" fontWeight={800}>Quan Ly Do An / Luan Van</Typography>
+            {/* Header */}
+            <Box sx={{
+                width: '100%',
+                mb: 4,
+                p: { xs: 2.5, sm: 3.5 },
+                borderRadius: 3,
+                background: "linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)",
+                color: "white",
+                boxShadow: "0 16px 36px rgba(79, 70, 229, 0.25)"
+            }}>
+                <Stack direction="row" alignItems="center" spacing={1.5} mb={0.75}>
+                    <ThesisIcon sx={{ fontSize: { xs: 28, sm: 34 } }} />
+                    <Typography variant="h4" fontWeight={800} sx={{ fontSize: { xs: '1.5rem', sm: '1.85rem', md: '2.1rem' }, letterSpacing: '-0.02em' }}>
+                        Quản Lý Đồ Án / Luận Văn
+                    </Typography>
                 </Stack>
-                <Typography variant="body1" sx={{ opacity: 0.85 }}>Theo doi tien do va phe duyet moc nop bai cua sinh vien</Typography>
+                <Typography variant="body1" sx={{ opacity: 0.9, fontSize: { xs: '0.88rem', sm: '0.98rem' } }}>
+                    Theo dõi tiến độ và phê duyệt mốc nộp bài của sinh viên
+                </Typography>
             </Box>
 
             {alert && (<Alert severity={alert.type} sx={{ mb: 3, borderRadius: 2 }} onClose={() => setAlert(null)}>{alert.msg}</Alert>)}
 
-            <Grid container spacing={2} mb={4}>
+            {/* Stats Cards */}
+            <Box sx={{
+                display: 'grid',
+                gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(4, 1fr)' },
+                gap: 2.5,
+                mb: 4,
+                width: '100%'
+            }}>
                 {[
-                    { label: "Tong do an", value: total, color: "#4f46e5", icon: "📚" },
-                    { label: "Dang thuc hien", value: inProgress, color: "#3b82f6", icon: "⚙️" },
-                    { label: "Hoan thanh", value: done, color: "#10b981", icon: "✅" },
-                    { label: "Cho kiem duyet", value: pending, color: "#f59e0b", icon: "⏳" },
+                    { label: "Tổng đồ án", value: total, color: "#4f46e5", icon: "📚" },
+                    { label: "Đang thực hiện", value: inProgress, color: "#3b82f6", icon: "⚙️" },
+                    { label: "Hoàn thành", value: done, color: "#10b981", icon: "✅" },
+                    { label: "Chờ kiểm duyệt", value: pending, color: "#f59e0b", icon: "⏳" },
                 ].map(stat => (
-                    <Grid item xs={6} sm={3} key={stat.label}>
-                        <Paper elevation={0} sx={{ border: "1px solid", borderColor: "divider", borderRadius: 3, textAlign: "center", p: 2 }}>
-                            <Typography fontSize="1.8rem">{stat.icon}</Typography>
-                            <Typography fontWeight={800} fontSize="1.8rem" sx={{ color: stat.color, lineHeight: 1 }}>{stat.value}</Typography>
-                            <Typography variant="caption" color="text.secondary" fontWeight={600}>{stat.label}</Typography>
-                        </Paper>
-                    </Grid>
+                    <Paper
+                        key={stat.label}
+                        elevation={0}
+                        sx={{
+                            border: "1px solid",
+                            borderColor: "divider",
+                            borderRadius: 3,
+                            textAlign: "center",
+                            p: { xs: 2, sm: 2.5 },
+                            transition: "all 0.25s ease",
+                            '&:hover': {
+                                transform: "translateY(-3px)",
+                                boxShadow: "0 10px 25px -4px rgba(0, 0, 0, 0.08)",
+                                borderColor: stat.color
+                            }
+                        }}
+                    >
+                        <Typography fontSize="2rem" mb={0.5}>{stat.icon}</Typography>
+                        <Typography fontWeight={800} fontSize="1.85rem" sx={{ color: stat.color, lineHeight: 1.2 }}>{stat.value}</Typography>
+                        <Typography variant="body2" color="text.secondary" fontWeight={600} mt={0.5}>{stat.label}</Typography>
+                    </Paper>
                 ))}
-            </Grid>
+            </Box>
 
+            {/* Table */}
             <Paper elevation={0} sx={{ borderRadius: 3, border: "1px solid", borderColor: "divider", overflow: "hidden" }}>
-                <Box sx={{ px: 3, py: 2, borderBottom: "1px solid", borderColor: "divider" }}>
-                    <Typography variant="subtitle1" fontWeight={700}>Danh sach do an tot nghiep</Typography>
+                <Box sx={{ px: 3, py: 2.25, borderBottom: "1px solid", borderColor: "divider", display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <Typography variant="subtitle1" fontWeight={700}>Danh sách đồ án tốt nghiệp</Typography>
+                    <Chip label={`${total} đề tài`} size="small" sx={{ fontWeight: 600, bgcolor: alpha('#4f46e5', 0.08), color: '#4f46e5' }} />
                 </Box>
                 {loading ? (
-                    <Box sx={{ p: 6, textAlign: "center" }}><CircularProgress size={40} /><Typography mt={2} color="text.secondary">Dang tai...</Typography></Box>
+                    <Box sx={{ p: 6, textAlign: "center" }}><CircularProgress size={40} /><Typography mt={2} color="text.secondary">Đang tải dữ liệu...</Typography></Box>
                 ) : theses.length === 0 ? (
-                    <Box sx={{ p: 6, textAlign: "center" }}><ThesisIcon sx={{ fontSize: 60, color: "text.disabled", mb: 2 }} /><Typography color="text.secondary">Chua co do an nao.</Typography></Box>
+                    <Box sx={{ p: 6, textAlign: "center", display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                        <Box sx={{ p: 2, bgcolor: alpha('#4f46e5', 0.08), borderRadius: '50%', color: '#4f46e5', mb: 1.5 }}>
+                            <ThesisIcon sx={{ fontSize: 48 }} />
+                        </Box>
+                        <Typography variant="h6" fontWeight={700} color="text.primary">Chưa có đồ án nào</Typography>
+                        <Typography variant="body2" color="text.secondary" mt={0.5}>Hiện tại chưa có sinh viên nào đăng ký đề tài hoặc đồ án tốt nghiệp.</Typography>
+                    </Box>
                 ) : (
                     <TableContainer>
                         <Table>
                             <TableHead>
                                 <TableRow sx={{ bgcolor: alpha("#4f46e5", 0.04) }}>
-                                    {["Sinh vien", "Ma de tai", "Ten de tai", "Trang thai", "M1", "M2", "M3", "M4", "Thao tac"].map(h => (
-                                        <TableCell key={h} sx={{ fontWeight: 700, fontSize: "0.72rem", textTransform: "uppercase", color: "text.secondary", whiteSpace: "nowrap" }}>{h}</TableCell>
+                                    {["Sinh viên", "Mã đề tài", "Tên đề tài", "Trạng thái", "M1", "M2", "M3", "M4", "Thao tác"].map(h => (
+                                        <TableCell key={h} sx={{ fontWeight: 700, fontSize: "0.75rem", textTransform: "uppercase", color: "text.secondary", whiteSpace: "nowrap" }}>{h}</TableCell>
                                     ))}
                                 </TableRow>
                             </TableHead>
@@ -158,7 +203,7 @@ export default function ThesisManagement() {
                                                 <TableCell key={i} align="center">
                                                     {m ? (
                                                         <Tooltip title={`${m.name} - ${m.status}`}>
-                                                            <Chip label={m.status === "Da duyet" ? "✓" : m.status === "Da nop" ? "!" : "–"} size="small"
+                                                            <Chip label={m.status === "Đã duyệt" || m.status === "Da duyet" ? "✓" : m.status === "Đã nộp" || m.status === "Da nop" ? "!" : "–"} size="small"
                                                                 sx={{ width: 28, height: 22, fontSize: "0.7rem", fontWeight: 700, bgcolor: alpha(msColor(m.status), 0.12), color: msColor(m.status), border: `1px solid ${alpha(msColor(m.status), 0.3)}` }} />
                                                         </Tooltip>
                                                     ) : "—"}
@@ -168,7 +213,7 @@ export default function ThesisManagement() {
                                         <TableCell>
                                             <Button size="small" variant="contained" startIcon={<ViewIcon fontSize="small" />} onClick={() => openDetail(t)}
                                                 sx={{ borderRadius: 2, textTransform: "none", fontSize: "0.75rem", background: "linear-gradient(135deg,#4f46e5,#7c3aed)", boxShadow: "none" }}>
-                                                Duyet
+                                                Duyệt
                                             </Button>
                                         </TableCell>
                                     </TableRow>
@@ -179,83 +224,78 @@ export default function ThesisManagement() {
                 )}
             </Paper>
 
+            {/* Detail & Review Dialog */}
             <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="md" fullWidth PaperProps={{ sx: { borderRadius: 3 } }}>
-                <DialogTitle sx={{ pb: 1, borderBottom: "1px solid", borderColor: "divider" }}>
+                <DialogTitle sx={{ pb: 1.5, borderBottom: "1px solid", borderColor: "divider" }}>
                     <Stack direction="row" alignItems="center" spacing={1.5}>
                         <ThesisIcon color="primary" />
                         <Box>
-                            <Typography fontWeight={800} fontSize="1rem">{selected?.topicTitle}</Typography>
-                            <Typography variant="caption" color="text.secondary">{selected?.topicCode} - SV: {selected?.student?.name}</Typography>
+                            <Typography fontWeight={800} fontSize="1.05rem">{selected?.topicTitle}</Typography>
+                            <Typography variant="caption" color="text.secondary">{selected?.topicCode} — Sinh viên: {selected?.student?.name}</Typography>
                         </Box>
                     </Stack>
                 </DialogTitle>
                 <DialogContent sx={{ pt: 3 }}>
                     {selected && (
                         <Box>
-                            <Grid container spacing={2} mb={3}>
-                                <Grid item xs={6}>
-                                    <Typography variant="caption" color="text.secondary" fontWeight={600}>Sinh vien</Typography>
+                            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2, mb: 3 }}>
+                                <Box>
+                                    <Typography variant="caption" color="text.secondary" fontWeight={600}>Sinh viên</Typography>
                                     <Typography fontWeight={700}>{selected.student?.name} ({selected.student?.code})</Typography>
-                                </Grid>
-                                <Grid item xs={6}>
-                                    <Typography variant="caption" color="text.secondary" fontWeight={600}>Giang vien huong dan</Typography>
-                                    <Typography fontWeight={700}>{selected.advisor?.name || "Chua phan cong"}</Typography>
-                                </Grid>
-                                <Grid item xs={12}>
-                                    <Typography variant="caption" color="text.secondary" fontWeight={600}>Mo ta</Typography>
-                                    <Typography fontSize="0.85rem" color="text.secondary">{selected.description || "—"}</Typography>
-                                </Grid>
-                            </Grid>
+                                </Box>
+                                <Box>
+                                    <Typography variant="caption" color="text.secondary" fontWeight={600}>Giảng viên hướng dẫn</Typography>
+                                    <Typography fontWeight={700}>{selected.advisor?.name || "Chưa phân công"}</Typography>
+                                </Box>
+                                <Box sx={{ gridColumn: { sm: 'span 2' } }}>
+                                    <Typography variant="caption" color="text.secondary" fontWeight={600}>Mô tả đề tài</Typography>
+                                    <Typography fontSize="0.88rem" color="text.secondary">{selected.description || "Chưa có mô tả"}</Typography>
+                                </Box>
+                            </Box>
                             <Divider sx={{ mb: 3 }} />
-                            <Typography fontWeight={700} mb={2}>Cac moc tien do (M1 den M4)</Typography>
+                            <Typography fontWeight={700} mb={2}>Các mốc tiến độ (M1 đến M4)</Typography>
                             <Stack spacing={2}>
                                 {(selected.milestones || []).map((m, idx) => (
                                     <Paper key={idx} variant="outlined" sx={{ p: 2, borderRadius: 2, borderColor: alpha(msColor(m.status), 0.4) }}>
                                         <Stack direction="row" alignItems="flex-start" justifyContent="space-between" gap={2}>
                                             <Box flex={1}>
                                                 <Stack direction="row" alignItems="center" spacing={1} mb={0.5}>
-                                                    <Typography fontWeight={700} fontSize="0.85rem">M{idx + 1}: {m.name}</Typography>
-                                                    <Chip label={m.status} size="small" sx={{ fontWeight: 700, fontSize: "0.65rem", bgcolor: alpha(msColor(m.status), 0.12), color: msColor(m.status) }} />
+                                                    <Typography fontWeight={700} fontSize="0.88rem">M{idx + 1}: {m.name}</Typography>
+                                                    <Chip label={m.status} size="small" sx={{ fontWeight: 700, fontSize: "0.68rem", bgcolor: alpha(msColor(m.status), 0.12), color: msColor(m.status) }} />
                                                 </Stack>
-                                                <Typography variant="caption" color="text.secondary">Han: {m.deadline}{m.score != null ? ` - Diem: ${m.score}` : ""}</Typography>
-                                                {m.comment && <Typography fontSize="0.8rem" color="text.secondary" mt={0.5}>💬 {m.comment}</Typography>}
+                                                <Typography variant="caption" color="text.secondary">Hạn nộp: {m.deadline}{m.score != null ? ` — Điểm: ${m.score}` : ""}</Typography>
+                                                {m.comment && <Typography fontSize="0.82rem" color="text.secondary" mt={0.5}>💬 {m.comment}</Typography>}
                                             </Box>
                                             {editingMilestone?.milestoneIndex === idx ? (
-                                                <Chip label="Dang sua..." size="small" color="warning" />
+                                                <Chip label="Đang sửa..." size="small" color="warning" />
                                             ) : (
                                                 <Button size="small" variant="outlined" startIcon={<EditIcon fontSize="small" />} onClick={() => startEdit(idx)}
-                                                    sx={{ borderRadius: 2, textTransform: "none", fontSize: "0.75rem", whiteSpace: "nowrap" }}>
-                                                    Cap nhat
+                                                    sx={{ borderRadius: 2, textTransform: "none", fontSize: "0.78rem", whiteSpace: "nowrap" }}>
+                                                    Cập nhật
                                                 </Button>
                                             )}
                                         </Stack>
                                         {editingMilestone?.milestoneIndex === idx && (
                                             <Box mt={2} p={2} sx={{ bgcolor: alpha("#4f46e5", 0.04), borderRadius: 2 }}>
-                                                <Grid container spacing={2}>
-                                                    <Grid item xs={12} sm={4}>
-                                                        <FormControl fullWidth size="small">
-                                                            <InputLabel>Trang thai</InputLabel>
-                                                            <Select value={editingMilestone.status} label="Trang thai"
-                                                                onChange={e => setEditingMilestone(p => ({ ...p, status: e.target.value }))}>
-                                                                {MILESTONE_STATUS.map(s => <MenuItem key={s.value} value={s.value}>{s.label}</MenuItem>)}
-                                                            </Select>
-                                                        </FormControl>
-                                                    </Grid>
-                                                    <Grid item xs={12} sm={4}>
-                                                        <TextField fullWidth size="small" label="Diem (0-10)" type="number" inputProps={{ min: 0, max: 10, step: 0.5 }}
-                                                            value={editingMilestone.score} onChange={e => setEditingMilestone(p => ({ ...p, score: e.target.value }))} />
-                                                    </Grid>
-                                                    <Grid item xs={12} sm={4}>
-                                                        <TextField fullWidth size="small" label="Nhan xet" value={editingMilestone.comment}
-                                                            onChange={e => setEditingMilestone(p => ({ ...p, comment: e.target.value }))} />
-                                                    </Grid>
-                                                </Grid>
-                                                <Stack direction="row" spacing={1} mt={1.5} justifyContent="flex-end">
-                                                    <Button size="small" onClick={() => setEditingMilestone(null)} sx={{ textTransform: "none" }}>Huy</Button>
+                                                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr 1fr' }, gap: 2 }}>
+                                                    <FormControl fullWidth size="small">
+                                                        <InputLabel>Trạng thái</InputLabel>
+                                                        <Select value={editingMilestone.status} label="Trạng thái"
+                                                            onChange={e => setEditingMilestone(p => ({ ...p, status: e.target.value }))}>
+                                                            {MILESTONE_STATUS.map(s => <MenuItem key={s.value} value={s.value}>{s.label}</MenuItem>)}
+                                                        </Select>
+                                                    </FormControl>
+                                                    <TextField fullWidth size="small" label="Điểm (0 - 10)" type="number" inputProps={{ min: 0, max: 10, step: 0.5 }}
+                                                        value={editingMilestone.score} onChange={e => setEditingMilestone(p => ({ ...p, score: e.target.value }))} />
+                                                    <TextField fullWidth size="small" label="Nhận xét" value={editingMilestone.comment}
+                                                        onChange={e => setEditingMilestone(p => ({ ...p, comment: e.target.value }))} />
+                                                </Box>
+                                                <Stack direction="row" spacing={1} mt={2} justifyContent="flex-end">
+                                                    <Button size="small" onClick={() => setEditingMilestone(null)} sx={{ textTransform: "none" }}>Hủy</Button>
                                                     <Button size="small" variant="contained" onClick={saveMilestone} disabled={saving}
                                                         startIcon={saving ? <CircularProgress size={14} color="inherit" /> : <ApproveIcon fontSize="small" />}
                                                         sx={{ textTransform: "none", borderRadius: 2, background: "linear-gradient(135deg,#4f46e5,#7c3aed)" }}>
-                                                        {saving ? "Dang luu..." : "Luu"}
+                                                        {saving ? "Đang lưu..." : "Lưu thay đổi"}
                                                     </Button>
                                                 </Stack>
                                             </Box>
@@ -267,9 +307,10 @@ export default function ThesisManagement() {
                     )}
                 </DialogContent>
                 <DialogActions sx={{ px: 3, py: 2, borderTop: "1px solid", borderColor: "divider" }}>
-                    <Button onClick={() => setDialogOpen(false)} sx={{ textTransform: "none" }}>Dong</Button>
+                    <Button onClick={() => setDialogOpen(false)} sx={{ textTransform: "none" }}>Đóng</Button>
                 </DialogActions>
             </Dialog>
         </Box>
     );
 }
+

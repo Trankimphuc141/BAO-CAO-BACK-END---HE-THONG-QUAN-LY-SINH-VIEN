@@ -13,6 +13,8 @@ import ExamPage from './pages/ExamPage';
 import SurveyPage from './pages/SurveyPage';
 import ThesisPage from './pages/ThesisPage';
 import NotificationsPage from './pages/NotificationsPage';
+import CurriculumPage from './pages/CurriculumPage';
+import CourseRegistrationPage from './pages/CourseRegistrationPage';
 
 import './App.css';
 
@@ -51,7 +53,7 @@ export default function App() {
     // Connect to backend websocket server
     const socketUrl = import.meta.env.VITE_API_URL 
       ? import.meta.env.VITE_API_URL.replace('/api', '') 
-      : 'http://localhost:5000';
+      : 'http://127.0.0.1:5000';
     
     console.log('🔌 Connecting to WebSocket at', socketUrl);
     const socket = io(socketUrl);
@@ -120,6 +122,8 @@ export default function App() {
             {activeTab === 'thesis' && (
               <ThesisPage currentUser={currentUser} onOpenAuth={() => setAuthModalOpen(true)} />
             )}
+            {activeTab === 'curriculum' && <CurriculumPage currentUser={currentUser} />}
+            {activeTab === 'registration' && <CourseRegistrationPage currentUser={currentUser} />}
           </main>
         </div>
           </>

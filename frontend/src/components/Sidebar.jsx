@@ -8,6 +8,8 @@ export default function Sidebar({ activeTab, onTabChange, currentUser, unreadCou
     { id: 'timetable', label: 'Lịch Học Cá Nhân', icon: 'fa-calendar-days', group: 'Cổng Cá Nhân' },
     { id: 'attendance', label: 'Theo Dõi Chuyên Cần', icon: 'fa-clipboard-user', group: 'Cổng Cá Nhân' },
     { id: 'exams', label: 'Lịch Thi Cá Nhân', icon: 'fa-pen-ruler', group: 'Cổng Cá Nhân' },
+    { id: 'curriculum', label: 'Chương Trình Đào Tạo', icon: 'fa-graduation-cap', group: 'Học Thuật & Tốt Nghiệp' },
+    { id: 'registration', label: 'Đăng Ký Học Phần', icon: 'fa-list-check', group: 'Học Thuật & Tốt Nghiệp' },
     { id: 'survey', label: 'Đánh Giá Giảng Dạy', icon: 'fa-star-half-stroke', group: 'Học Thuật & Tốt Nghiệp' },
     { id: 'thesis', label: 'Nộp Đồ Án / Luận Văn', icon: 'fa-file-arrow-up', group: 'Học Thuật & Tốt Nghiệp' }
   ];

@@ -12,10 +12,13 @@ const thesisRoutes = require('./thesisRoutes');
 const reportRoutes = require('./reportRoutes');
 const teacherRoutes = require('./teacherRoutes');
 const seedRoutes = require('./seedRoutes');
+const adminRoutes = require('./adminRoutes');
+const academicManagementRoutes = require('./academicManagementRoutes');
 
 // Định tuyến API theo 9 phân hệ chức năng
 router.use('/auth', authRoutes);
 router.use('/academic', academicRoutes);
+router.use('/academic-mgmt', academicManagementRoutes);
 router.use('/student', studentRoutes);
 router.use('/exams', examRoutes);
 router.use('/surveys', surveyRoutes);
@@ -25,5 +28,6 @@ router.use('/theses', thesisRoutes);
 router.use('/reports', reportRoutes);
 router.use('/teacher', teacherRoutes);
 router.use('/seed', seedRoutes);
+router.use('/admin', adminRoutes);
 
 module.exports = router;

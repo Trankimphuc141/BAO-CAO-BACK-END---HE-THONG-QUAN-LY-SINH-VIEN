@@ -5,6 +5,8 @@ const navItems = [
   { path: '/', label: 'Tổng Quan', icon: 'fa-chart-pie', group: 'Quản Trị' },
   { path: '/students', label: 'Quản Lý Sinh Viên', icon: 'fa-user-graduate', group: 'Quản Trị' },
   { path: '/teachers', label: 'Quản Lý Giảng Viên', icon: 'fa-chalkboard-user', group: 'Quản Trị' },
+  { path: '/academic-catalog', label: 'Chương Trình & Môn Học', icon: 'fa-book-bookmark', group: 'Học Thuật' },
+  { path: '/course-classes', label: 'Học Phần & Phân Công', icon: 'fa-calendar-check', group: 'Học Thuật' },
 ];
 
 const Layout = ({ adminUser, onLogout }) => {
@@ -35,8 +37,20 @@ const Layout = ({ adminUser, onLogout }) => {
         </div>
 
         <nav className="nav-group">
-          <div className="nav-label">Quản Trị</div>
-          {navItems.map((item) => (
+          <div className="nav-label">Quản Lý Chung</div>
+          {navItems.filter(i => i.group === 'Quản Trị').map((item) => (
+            <button
+              key={item.path}
+              className={`nav-item ${location.pathname === item.path || (item.path !== '/' && location.pathname.startsWith(item.path)) ? 'active' : ''}`}
+              onClick={() => navigate(item.path)}
+            >
+              <i className={`fa-solid ${item.icon}`}></i>
+              <span>{item.label}</span>
+            </button>
+          ))}
+
+          <div className="nav-label" style={{ marginTop: '16px' }}>Quản Lý Học Thuật</div>
+          {navItems.filter(i => i.group === 'Học Thuật').map((item) => (
             <button
               key={item.path}
               className={`nav-item ${location.pathname === item.path || (item.path !== '/' && location.pathname.startsWith(item.path)) ? 'active' : ''}`}

@@ -21,7 +21,8 @@ import {
     AdminPanelSettings as AdminIcon,
     Person as ProfileIcon,
     KeyboardArrowRight,
-    School as ThesisIcon
+    School as ThesisIcon,
+    CalendarMonth as CalendarIcon
 } from '@mui/icons-material';
 
 const drawerWidth = 268;
@@ -44,6 +45,7 @@ function Layout(props) {
 
     const menuItems = [
         { text: 'Dashboard', icon: <DashboardIcon />, path: '/', exact: true },
+        { text: 'Lịch Dạy & Lớp Học', icon: <CalendarIcon />, path: '/schedule' },
         { text: 'Sinh Viên', icon: <PeopleIcon />, path: '/students' },
         { text: 'Đồ Án / Luận Văn', icon: <ThesisIcon />, path: '/thesis' },
         { text: 'Nhập Điểm', icon: <GradeIcon />, path: '/grades' },

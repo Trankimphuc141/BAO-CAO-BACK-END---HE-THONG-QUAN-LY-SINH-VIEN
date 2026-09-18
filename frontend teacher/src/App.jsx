@@ -12,6 +12,7 @@ import NotificationCenter from './pages/NotificationCenter';
 import Profile from './pages/Profile';
 import AdminPanel from './pages/AdminPanel';
 import ThesisManagement from './pages/ThesisManagement';
+import TeachingSchedule from './pages/TeachingSchedule';
 import Layout from './components/Layout';
 
 const PrivateRoute = ({ children }) => {
@@ -39,6 +40,7 @@ function App() {
                     }
                 >
                     <Route index element={<Dashboard />} />
+                    <Route path="schedule" element={<TeachingSchedule />} />
                     <Route path="students" element={<StudentList />} />
                     <Route path="students/:id" element={<StudentDetail />} />
                     <Route path="grades" element={<GradeManagement />} />

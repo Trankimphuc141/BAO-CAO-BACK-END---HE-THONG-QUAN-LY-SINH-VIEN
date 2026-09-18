@@ -147,6 +147,35 @@ class ApiService {
       body: JSON.stringify(data)
     });
   }
+
+  // 7. Academic Management & Course Registration
+  async getCurriculumView() {
+    return await this.request('/academic-mgmt/student/curriculum');
+  }
+
+  async getAvailableSections(semester = '') {
+    const q = semester ? `?semester=${encodeURIComponent(semester)}` : '';
+    return await this.request(`/academic-mgmt/registration/available${q}`);
+  }
+
+  async registerSection(classSectionId) {
+    return await this.request('/academic-mgmt/registration/register', {
+      method: 'POST',
+      body: JSON.stringify({ classSectionId })
+    });
+  }
+
+  async dropSection(classSectionId) {
+    return await this.request('/academic-mgmt/registration/drop', {
+      method: 'POST',
+      body: JSON.stringify({ classSectionId })
+    });
+  }
+
+  async getMyRegisteredSections(semester = '') {
+    const q = semester ? `?semester=${encodeURIComponent(semester)}` : '';
+    return await this.request(`/academic-mgmt/registration/my-courses${q}`);
+  }
 }
 
 export const api = new ApiService();

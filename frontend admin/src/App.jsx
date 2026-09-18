@@ -5,6 +5,8 @@ import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Students from './pages/Students';
 import Teachers from './pages/Teachers';
+import AcademicCatalog from './pages/AcademicCatalog';
+import CourseClasses from './pages/CourseClasses';
 
 const PrivateRoute = ({ children }) => {
   const token = localStorage.getItem('adminToken');
@@ -42,6 +44,8 @@ function App() {
           <Route index element={<Dashboard adminUser={adminUser} />} />
           <Route path="students" element={<Students />} />
           <Route path="teachers" element={<Teachers />} />
+          <Route path="academic-catalog" element={<AcademicCatalog />} />
+          <Route path="course-classes" element={<CourseClasses />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />

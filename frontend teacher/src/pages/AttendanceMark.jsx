@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from '../utils/axiosConfig';
 import {
-    Box, Typography, Paper, Grid, TextField, MenuItem, Button, Table,
+    Box, Typography, Paper, TextField, MenuItem, Button, Table,
     TableBody, TableCell, TableContainer, TableHead, TableRow, Stack,
     Chip, Alert, Card, CardContent, alpha, CircularProgress, Fade, Avatar
 } from '@mui/material';
@@ -114,60 +114,59 @@ function AttendanceMark() {
             {/* Controls */}
             <Paper elevation={0} sx={{ p: 3, mb: 4, borderRadius: 3, border: '1px solid', borderColor: 'divider' }}>
                 <Typography variant="subtitle1" fontWeight={700} mb={2}>⚙️ Cấu hình buổi điểm danh</Typography>
-                <Grid container spacing={3} alignItems="center">
-                    <Grid item xs={12} sm={5}>
-                        <TextField select fullWidth label="Lớp học phần" value={selectedSection} onChange={(e) => handleSectionChange(e.target.value)}
-                            helperText={sectionInfo ? `${sectionInfo.course?.name} — Phòng: ${sectionInfo.room}` : ''}
-                            InputLabelProps={{ shrink: true }}
-                            sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}>
-                            {classSections.map(sec => (
-                                <MenuItem key={sec._id} value={sec._id}>
-                                    <Box>
-                                        <Typography fontWeight={600}>{sec.sectionCode}</Typography>
-                                        <Typography variant="caption" color="text.secondary">{sec.course?.name}</Typography>
-                                    </Box>
-                                </MenuItem>
-                            ))}
-                        </TextField>
-                    </Grid>
-                    <Grid item xs={6} sm={3}>
-                        <TextField type="number" fullWidth label="Buổi học số" value={sessionNumber}
-                            inputProps={{ min: 1, max: 15 }}
-                            onChange={(e) => setSessionNumber(parseInt(e.target.value) || 1)}
-                            helperText={`Tối đa ${sectionInfo?.totalLessons || 15} buổi`}
-                            sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }} />
-                    </Grid>
-                    <Grid item xs={6} sm={3}>
-                        <Box>
-                            <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', mb: 0.5, display: 'block', ml: 0.5 }}>
-                                Ngày điểm danh
-                            </Typography>
-                            <TextField type="date" fullWidth value={date}
-                                onChange={(e) => setDate(e.target.value)}
-                                sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }} />
-                        </Box>
-                    </Grid>
-                </Grid>
+                <Box sx={{
+                    display: 'grid',
+                    gridTemplateColumns: { xs: '1fr', md: '1.6fr 1fr 1fr' },
+                    gap: 2.5,
+                    alignItems: 'start'
+                }}>
+                    <TextField select fullWidth label="Lớp học phần" value={selectedSection} onChange={(e) => handleSectionChange(e.target.value)}
+                        helperText={sectionInfo ? `${sectionInfo.course?.name} — Phòng: ${sectionInfo.room}` : ''}
+                        InputLabelProps={{ shrink: true }}
+                        sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}>
+                        {classSections.map(sec => (
+                            <MenuItem key={sec._id} value={sec._id}>
+                                <Box>
+                                    <Typography fontWeight={600}>{sec.sectionCode}</Typography>
+                                    <Typography variant="caption" color="text.secondary">{sec.course?.name}</Typography>
+                                </Box>
+                            </MenuItem>
+                        ))}
+                    </TextField>
+                    <TextField type="number" fullWidth label="Buổi học số" value={sessionNumber}
+                        inputProps={{ min: 1, max: 15 }}
+                        onChange={(e) => setSessionNumber(parseInt(e.target.value) || 1)}
+                        helperText={`Tối đa ${sectionInfo?.totalLessons || 15} buổi`}
+                        sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }} />
+                    <TextField type="date" fullWidth label="Ngày điểm danh" value={date}
+                        InputLabelProps={{ shrink: true }}
+                        onChange={(e) => setDate(e.target.value)}
+                        sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }} />
+                </Box>
             </Paper>
 
             {/* Stats */}
             {students.length > 0 && (
-                <Grid container spacing={2} mb={3}>
+                <Box sx={{
+                    display: 'grid',
+                    gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(4, 1fr)' },
+                    gap: 2.5,
+                    mb: 3,
+                    width: '100%'
+                }}>
                     {[
                         { label: 'Tổng số', value: students.length, color: '#4F46E5', icon: '👥' },
                         { label: 'Có mặt', value: countByStatus('present'), color: '#059669', icon: '✅' },
                         { label: 'Đi muộn', value: countByStatus('late'), color: '#D97706', icon: '⏰' },
                         { label: 'Vắng mặt', value: countByStatus('excused_absent') + countByStatus('unexcused_absent'), color: '#DC2626', icon: '❌' },
                     ].map(stat => (
-                        <Grid item xs={6} sm={3} key={stat.label}>
-                            <Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 3, textAlign: 'center', p: 2 }}>
-                                <Typography fontSize="1.8rem">{stat.icon}</Typography>
-                                <Typography variant="h4" fontWeight={800} sx={{ color: stat.color }}>{stat.value}</Typography>
-                                <Typography variant="caption" color="text.secondary" fontWeight={600}>{stat.label}</Typography>
-                            </Card>
-                        </Grid>
+                        <Card key={stat.label} elevation={0} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 3, textAlign: 'center', p: 2 }}>
+                            <Typography fontSize="1.8rem">{stat.icon}</Typography>
+                            <Typography variant="h4" fontWeight={800} sx={{ color: stat.color }}>{stat.value}</Typography>
+                            <Typography variant="caption" color="text.secondary" fontWeight={600}>{stat.label}</Typography>
+                        </Card>
                     ))}
-                </Grid>
+                </Box>
             )}
 
             {/* Attendance Table */}

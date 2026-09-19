@@ -10,8 +10,17 @@ const initialTeacherForm = {
   phone: '',
   department: 'Công nghệ thông tin',
   gender: 'Nam',
-  status: 'Đang công tác',
+  status: 'Đang làm',
   dateOfBirth: ''
+};
+
+const TEACHER_STATUSES = {
+  'working': { label: 'Đang làm', cls: 'badge-success' },
+  'Đang làm': { label: 'Đang làm', cls: 'badge-success' },
+  'Đang công tác': { label: 'Đang làm', cls: 'badge-success' },
+  'resigned': { label: 'Nghỉ việc', cls: 'badge-danger' },
+  'Nghỉ việc': { label: 'Nghỉ việc', cls: 'badge-danger' },
+  'Tạm nghỉ': { label: 'Nghỉ việc', cls: 'badge-danger' }
 };
 
 const Teachers = () => {
@@ -23,11 +32,17 @@ const Teachers = () => {
   const [total, setTotal] = useState(0);
   const limit = 15;
 
-  // Modal states
+  // Add Modal states
   const [showAddModal, setShowAddModal] = useState(false);
   const [formData, setFormData] = useState(initialTeacherForm);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState('');
+
+  // Edit Modal states
+  const [editingTeacher, setEditingTeacher] = useState(null);
+  const [editFormData, setEditFormData] = useState({ ...initialTeacherForm, password: '' });
+  const [editSubmitting, setEditSubmitting] = useState(false);
+  const [editFormError, setEditFormError] = useState('');
 
   // Delete modal states
   const [deleteTarget, setDeleteTarget] = useState(null);
@@ -89,6 +104,7 @@ const Teachers = () => {
   const handleOpenAdd = () => {
     setFormData(initialTeacherForm);
     setFormError('');
+    setShowAddModal(false);
     setShowAddModal(true);
   };
 
@@ -122,6 +138,56 @@ const Teachers = () => {
       fetchTeachers();
     } else {
       setFormError(res.message || 'Không thể thêm giảng viên. Vui lòng kiểm tra lại dữ liệu.');
+    }
+  };
+
+  // Handle Open Edit Modal
+  const handleOpenEdit = (teacher) => {
+    setEditingTeacher(teacher);
+    setEditFormData({
+      code: teacher.code || '',
+      name: teacher.name || '',
+      email: teacher.email || '',
+      password: '', // Keep empty unless admin wants to change password
+      phone: teacher.phone || '',
+      department: teacher.department || 'Công nghệ thông tin',
+      gender: teacher.gender || 'Nam',
+      status: teacher.status || 'Đang làm',
+      dateOfBirth: teacher.dateOfBirth || ''
+    });
+    setEditFormError('');
+  };
+
+  const handleEditFormChange = (e) => {
+    const { name, value } = e.target;
+    setEditFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleSubmitEdit = async (e) => {
+    e.preventDefault();
+    if (!editingTeacher) return;
+    setEditFormError('');
+
+    if (!editFormData.code.trim() || !editFormData.name.trim() || !editFormData.email.trim()) {
+      setEditFormError('Vui lòng điền đầy đủ Mã giảng viên, Họ tên và Email');
+      return;
+    }
+
+    if (editFormData.phone && !/^0[0-9]{9}$/.test(editFormData.phone)) {
+      setEditFormError('Số điện thoại phải gồm đúng 10 chữ số và bắt đầu bằng số 0');
+      return;
+    }
+
+    setEditSubmitting(true);
+    const res = await api.updateUser(editingTeacher._id, editFormData);
+    setEditSubmitting(false);
+
+    if (res.success) {
+      setEditingTeacher(null);
+      showToast(`✏️ Đã cập nhật hồ sơ giảng viên "${editFormData.name}" thành công!`);
+      fetchTeachers();
+    } else {
+      setEditFormError(res.message || 'Lỗi khi cập nhật thông tin giảng viên');
     }
   };
 
@@ -217,6 +283,7 @@ const Teachers = () => {
                 <th>Mật Khẩu</th>
                 <th>Email</th>
                 <th>Khoa / Bộ Môn</th>
+                <th>Trạng Thái</th>
                 <th>Số ĐT</th>
                 <th style={{ textAlign: 'center' }}>Thao Tác</th>
               </tr>
@@ -225,14 +292,14 @@ const Teachers = () => {
               {loading ? (
                 Array.from({ length: 5 }).map((_, i) => (
                   <tr key={i}>
-                    {Array.from({ length: 8 }).map((_, j) => (
+                    {Array.from({ length: 9 }).map((_, j) => (
                       <td key={j}><div className="skeleton" style={{ height: 16, borderRadius: 4 }} /></td>
                     ))}
                   </tr>
                 ))
               ) : teachers.length === 0 ? (
                 <tr>
-                  <td colSpan="8">
+                  <td colSpan="9">
                     <div className="empty-state">
                       <i className="fa-solid fa-chalkboard-user" />
                       <p>
@@ -249,6 +316,8 @@ const Teachers = () => {
               ) : (
                 teachers.map((gv, i) => {
                   const color = deptColors[gv.department] || '#64748b';
+                  const st = TEACHER_STATUSES[gv.status] || { label: gv.status || 'Đang làm', cls: 'badge-success' };
+
                   return (
                     <tr key={gv._id || i}>
                       <td style={{ color: 'var(--text-light)', fontSize: '12px' }}>{(page - 1) * limit + i + 1}</td>
@@ -328,6 +397,9 @@ const Teachers = () => {
                           </span>
                         ) : '—'}
                       </td>
+                      <td>
+                        <span className={`badge ${st.cls}`}>{st.label}</span>
+                      </td>
                       <td style={{ fontSize: '12.5px', color: 'var(--text-muted)' }}>{gv.phone || '—'}</td>
                       <td>
                         <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
@@ -338,6 +410,14 @@ const Teachers = () => {
                             style={{ color: 'var(--primary)' }}
                           >
                             <i className="fa-solid fa-id-card" style={{ fontSize: '12px' }} />
+                          </button>
+                          <button
+                            className="btn btn-secondary btn-sm btn-icon"
+                            title="Chỉnh sửa hồ sơ"
+                            onClick={() => handleOpenEdit(gv)}
+                            style={{ color: '#2563eb' }}
+                          >
+                            <i className="fa-solid fa-pen-to-square" style={{ fontSize: '12px' }} />
                           </button>
                           <button
                             className="btn btn-secondary btn-sm btn-icon"
@@ -449,8 +529,7 @@ const Teachers = () => {
                       value={formData.code}
                       onChange={handleFormChange}
                       className="form-control"
-                      style={{ width: '100%', textTransform: 'uppercase' }}
-                      autoFocus
+                      style={{ width: '100%' }}
                     />
                   </div>
 
@@ -462,7 +541,7 @@ const Teachers = () => {
                       type="text"
                       name="name"
                       required
-                      placeholder="VD: TS. Trần Văn B"
+                      placeholder="VD: Nguyễn Văn A"
                       value={formData.name}
                       onChange={handleFormChange}
                       className="form-control"
@@ -478,7 +557,7 @@ const Teachers = () => {
                       type="email"
                       name="email"
                       required
-                      placeholder="VD: tranvanb@teacher.edu.vn"
+                      placeholder="VD: gv.a@university.edu.vn"
                       value={formData.email}
                       onChange={handleFormChange}
                       className="form-control"
@@ -491,9 +570,9 @@ const Teachers = () => {
                       Số điện thoại
                     </label>
                     <input
-                      type="tel"
+                      type="text"
                       name="phone"
-                      placeholder="VD: 0987654321"
+                      placeholder="VD: 0912345678"
                       value={formData.phone}
                       onChange={handleFormChange}
                       className="form-control"
@@ -549,8 +628,8 @@ const Teachers = () => {
                       className="form-control"
                       style={{ width: '100%' }}
                     >
-                      <option value="Đang công tác">Đang công tác</option>
-                      <option value="Tạm nghỉ">Tạm nghỉ</option>
+                      <option value="Đang làm">Đang làm</option>
+                      <option value="Nghỉ việc">Nghỉ việc</option>
                     </select>
                   </div>
 
@@ -592,6 +671,207 @@ const Teachers = () => {
                   ) : (
                     <>
                       <i className="fa-solid fa-check" /> Xác Nhận Thêm
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Modal Chỉnh Sửa Hồ Sơ Giảng Viên */}
+      {editingTeacher && createPortal(
+        <div className="modal-overlay" onClick={() => !editSubmitting && setEditingTeacher(null)}>
+          <div className="modal-content" style={{ maxWidth: '560px' }} onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>
+                <i className="fa-solid fa-pen-to-square" style={{ color: 'var(--primary)' }} />
+                Chỉnh Sửa Hồ Sơ Giảng Viên
+              </h3>
+              <button
+                className="modal-close"
+                onClick={() => !editSubmitting && setEditingTeacher(null)}
+                disabled={editSubmitting}
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmitEdit}>
+              <div className="modal-body" style={{ maxHeight: '72vh', overflowY: 'auto' }}>
+                {editFormError && (
+                  <div style={{
+                    padding: '10px 14px',
+                    borderRadius: '8px',
+                    background: 'rgba(239, 68, 68, 0.1)',
+                    border: '1px solid rgba(239, 68, 68, 0.3)',
+                    color: '#dc2626',
+                    fontSize: '13px',
+                    marginBottom: '16px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px'
+                  }}>
+                    <i className="fa-solid fa-circle-exclamation" />
+                    <span>{editFormError}</span>
+                  </div>
+                )}
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 600, color: 'var(--text-main)', marginBottom: '5px' }}>
+                      Mã giảng viên <span style={{ color: '#ef4444' }}>*</span>
+                    </label>
+                    <input
+                      type="text"
+                      name="code"
+                      required
+                      value={editFormData.code}
+                      onChange={handleEditFormChange}
+                      className="form-control"
+                      style={{ width: '100%' }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 600, color: 'var(--text-main)', marginBottom: '5px' }}>
+                      Họ và tên <span style={{ color: '#ef4444' }}>*</span>
+                    </label>
+                    <input
+                      type="text"
+                      name="name"
+                      required
+                      value={editFormData.name}
+                      onChange={handleEditFormChange}
+                      className="form-control"
+                      style={{ width: '100%' }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 600, color: 'var(--text-main)', marginBottom: '5px' }}>
+                      Email <span style={{ color: '#ef4444' }}>*</span>
+                    </label>
+                    <input
+                      type="email"
+                      name="email"
+                      required
+                      value={editFormData.email}
+                      onChange={handleEditFormChange}
+                      className="form-control"
+                      style={{ width: '100%' }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 600, color: 'var(--text-main)', marginBottom: '5px' }}>
+                      Số điện thoại
+                    </label>
+                    <input
+                      type="text"
+                      name="phone"
+                      placeholder="0912345678"
+                      value={editFormData.phone}
+                      onChange={handleEditFormChange}
+                      className="form-control"
+                      style={{ width: '100%' }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 600, color: 'var(--text-main)', marginBottom: '5px' }}>
+                      Khoa / Bộ môn
+                    </label>
+                    <select
+                      name="department"
+                      value={editFormData.department}
+                      onChange={handleEditFormChange}
+                      className="form-control"
+                      style={{ width: '100%' }}
+                    >
+                      <option value="Công nghệ thông tin">Công nghệ thông tin</option>
+                      <option value="Toán">Toán</option>
+                      <option value="Vật lý">Vật lý</option>
+                      <option value="Hóa học">Hóa học</option>
+                      <option value="Kinh tế">Kinh tế</option>
+                      <option value="Ngoại ngữ">Ngoại ngữ</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 600, color: 'var(--text-main)', marginBottom: '5px' }}>
+                      Giới tính
+                    </label>
+                    <select
+                      name="gender"
+                      value={editFormData.gender}
+                      onChange={handleEditFormChange}
+                      className="form-control"
+                      style={{ width: '100%' }}
+                    >
+                      <option value="Nam">Nam</option>
+                      <option value="Nữ">Nữ</option>
+                      <option value="Khác">Khác</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 600, color: 'var(--text-main)', marginBottom: '5px' }}>
+                      Trạng thái công tác (Vô hiệu hóa)
+                    </label>
+                    <select
+                      name="status"
+                      value={editFormData.status}
+                      onChange={handleEditFormChange}
+                      className="form-control"
+                      style={{ width: '100%', fontWeight: 600, color: editFormData.status === 'Nghỉ việc' ? '#dc2626' : '#059669' }}
+                    >
+                      <option value="Đang làm">🟢 Đang làm (Hoạt động)</option>
+                      <option value="Nghỉ việc">🔴 Nghỉ việc (Vô hiệu hóa)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 600, color: 'var(--text-main)', marginBottom: '5px' }}>
+                      Đổi mật khẩu mới (Nếu cần)
+                    </label>
+                    <input
+                      type="text"
+                      name="password"
+                      placeholder="Để trống nếu không đổi"
+                      value={editFormData.password}
+                      onChange={handleEditFormChange}
+                      className="form-control"
+                      style={{ width: '100%' }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="modal-footer">
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setEditingTeacher(null)}
+                  disabled={editSubmitting}
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  disabled={editSubmitting}
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+                >
+                  {editSubmitting ? (
+                    <>
+                      <i className="fa-solid fa-spinner fa-spin" /> Đang lưu...
+                    </>
+                  ) : (
+                    <>
+                      <i className="fa-solid fa-floppy-disk" /> Lưu Thay Đổi
                     </>
                   )}
                 </button>
@@ -692,7 +972,6 @@ const Teachers = () => {
             </div>
 
             <div className="modal-body" style={{ maxHeight: '75vh', overflowY: 'auto' }}>
-              {/* Header Profile Card */}
               <div style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -724,8 +1003,8 @@ const Teachers = () => {
                     <h4 style={{ margin: 0, fontSize: '17px', fontWeight: 700, color: 'var(--text-main)' }}>
                       {viewingTeacher.name}
                     </h4>
-                    <span className="badge badge-success">
-                      {viewingTeacher.status || 'Đang công tác'}
+                    <span className={`badge ${viewingTeacher.status === 'Nghỉ việc' ? 'badge-danger' : 'badge-success'}`}>
+                      {viewingTeacher.status || 'Đang làm'}
                     </span>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginTop: '4px', flexWrap: 'wrap' }}>
@@ -739,7 +1018,6 @@ const Teachers = () => {
                 </div>
               </div>
 
-              {/* Grid Information */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div style={{ padding: '12px', borderRadius: '10px', background: '#fafbfc', border: '1px solid #f1f5f9' }}>
                   <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, marginBottom: '4px' }}>
@@ -807,40 +1085,33 @@ const Teachers = () => {
 
                 <div style={{ padding: '12px', borderRadius: '10px', background: '#fafbfc', border: '1px solid #f1f5f9' }}>
                   <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, marginBottom: '4px' }}>
-                    Ngày Sinh
-                  </div>
-                  <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-main)' }}>
-                    {viewingTeacher.dateOfBirth || '— Chưa cập nhật'}
-                  </div>
-                </div>
-
-                <div style={{ padding: '12px', borderRadius: '10px', background: '#fafbfc', border: '1px solid #f1f5f9' }}>
-                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, marginBottom: '4px' }}>
                     Trạng Thái Công Tác
                   </div>
-                  <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-main)' }}>
-                    {viewingTeacher.status || 'Đang công tác'}
-                  </div>
-                </div>
-
-                <div style={{ gridColumn: '1 / -1', padding: '12px', borderRadius: '10px', background: '#fafbfc', border: '1px solid #f1f5f9' }}>
-                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, marginBottom: '4px' }}>
-                    Ngày Tạo Tài Khoản
-                  </div>
-                  <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-main)' }}>
-                    {viewingTeacher.createdAt ? new Date(viewingTeacher.createdAt).toLocaleString('vi-VN') : '—'}
+                  <div style={{ fontSize: '13px', fontWeight: 600, color: viewingTeacher.status === 'Nghỉ việc' ? '#dc2626' : '#059669' }}>
+                    {viewingTeacher.status || 'Đang làm'}
                   </div>
                 </div>
               </div>
             </div>
 
-            <div className="modal-footer">
+            <div className="modal-footer" style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setViewingTeacher(null)}
+              >
+                Đóng
+              </button>
               <button
                 type="button"
                 className="btn btn-primary"
-                onClick={() => setViewingTeacher(null)}
+                onClick={() => {
+                  const teacherToEdit = viewingTeacher;
+                  setViewingTeacher(null);
+                  handleOpenEdit(teacherToEdit);
+                }}
               >
-                Đóng Hồ Sơ
+                <i className="fa-solid fa-pen-to-square" /> Chỉnh Sửa Hồ Sơ
               </button>
             </div>
           </div>

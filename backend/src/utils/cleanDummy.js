@@ -1,6 +1,5 @@
 require('dotenv').config({ path: require('path').join(__dirname, '../../.env') });
 const mongoose = require('mongoose');
-const connectDB = require('../config/db');
 
 const User = require('../models/User');
 const Course = require('../models/Course');
@@ -15,16 +14,22 @@ const Thesis = require('../models/Thesis');
 const Announcement = require('../models/Announcement');
 const Note = require('../models/Note');
 const Notification = require('../models/Notification');
+const Major = require('../models/Major');
+const Curriculum = require('../models/Curriculum');
+const Enrollment = require('../models/Enrollment');
 
 const clearDummyData = async () => {
     try {
-        await connectDB();
-        console.log('Clearing all dummy data...');
+        const uri = process.env.MONGODB_URI || 'mongodb+srv://TranPhamKimPhuc:Phuc123@cluster0.me3zblq.mongodb.net/student_db?retryWrites=true&w=majority';
+        console.log('⚡ Đang kết nối tới MongoDB Atlas:', uri.replace(/\/\/[^:]+:[^@]+@/, '//***:***@'));
 
-        const userRes = await User.deleteMany({ code: { $ne: 'admin' } });
-        console.log('Deleted dummy users count:', userRes.deletedCount);
+        await mongoose.connect(uri);
+        console.log('✅ Đã kết nối thành công tới MongoDB Atlas!');
+
+        console.log('🧹 Đang tiến hành xóa sạch toàn bộ dữ liệu ảo...');
 
         await Promise.all([
+            User.deleteMany({ code: { $ne: 'admin' } }),
             Course.deleteMany({}),
             ClassSection.deleteMany({}),
             Attendance.deleteMany({}),
@@ -36,23 +41,39 @@ const clearDummyData = async () => {
             Thesis.deleteMany({}),
             Announcement.deleteMany({}),
             Note.deleteMany({}),
-            Notification.deleteMany({})
+            Notification.deleteMany({}),
+            Major.deleteMany({}),
+            Curriculum.deleteMany({}),
+            Enrollment.deleteMany({})
         ]);
 
-        // Ensure admin user has plainPassword: '123'
-        await User.updateOne({ code: 'admin' }, { $set: { plainPassword: '123' } });
+        // Đảm bảo có tài khoản Admin duy nhất để quản trị viên có thể đăng nhập
+        let adminUser = await User.findOne({ role: 'admin' });
+        if (!adminUser) {
+            adminUser = await User.create({
+                code: 'admin',
+                name: 'Quản Trị Viên Hệ Thống',
+                email: 'admin@university.edu.vn',
+                password: '123',
+                plainPassword: '123',
+                role: 'admin',
+                department: 'Phòng Đào Tạo',
+                status: 'Đang công tác'
+            });
+            console.log('✅ Đã khởi tạo tài khoản Admin duy nhất (admin / 123)');
+        } else {
+            await User.updateOne({ _id: adminUser._id }, { $set: { code: 'admin', password: '123', plainPassword: '123' } });
+            console.log('✅ Đã dọn dẹp và giữ lại tài khoản Admin (admin / 123)');
+        }
 
-        const remaining = await User.find({});
-        console.log('Remaining users:', remaining.map(u => ({
-            code: u.code,
-            name: u.name,
-            role: u.role,
-            plainPassword: u.plainPassword
-        })));
-        console.log('=== TOÀN BỘ DỮ LIỆU ẢO ĐÃ ĐƯỢC XÓA SẠCH! CHỈ GIỮ LẠI TÀI KHOẢN ADMIN ===');
+        console.log('\n=============================================================');
+        console.log('🎉 TOÀN BỘ DỮ LIỆU ẢO TRÊN MONGODB ATLAS ĐÃ ĐƯỢC XÓA SẠCH!');
+        console.log('🔑 TÀI KHOẢN ADMIN: Code = "admin" | Mật khẩu = "123"');
+        console.log('=============================================================\n');
+
         process.exit(0);
     } catch (err) {
-        console.error('Lỗi khi xóa dữ liệu ảo:', err);
+        console.error('❌ Lỗi khi dọn dẹp dữ liệu trên MongoDB Atlas:', err);
         process.exit(1);
     }
 };

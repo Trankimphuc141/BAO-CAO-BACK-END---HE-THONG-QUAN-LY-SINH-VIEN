@@ -25,14 +25,15 @@ exports.register = async (req, res) => {
         const formattedCode = code.trim().toUpperCase();
         const formattedEmail = email.trim().toLowerCase();
 
-        const existingUser = await User.findOne({
-            $or: [{ code: formattedCode }, { email: formattedEmail }]
-        });
+        // Kiểm tra trùng Mã SV trong nhóm Sinh viên
+        const existingCode = await User.findOne({ code: formattedCode, role: 'student' });
+        if (existingCode) {
+            return res.status(409).json({ success: false, message: 'Mã sinh viên này đã được đăng ký trên hệ thống' });
+        }
 
-        if (existingUser) {
-            if (existingUser.code === formattedCode) {
-                return res.status(409).json({ success: false, message: 'Mã sinh viên này đã được đăng ký trên hệ thống' });
-            }
+        // Kiểm tra trùng Email toàn hệ thống
+        const existingEmail = await User.findOne({ email: formattedEmail });
+        if (existingEmail) {
             return res.status(409).json({ success: false, message: 'Địa chỉ Email này đã được sử dụng' });
         }
 
@@ -74,46 +75,63 @@ exports.register = async (req, res) => {
     }
 };
 
-// 2. Đăng nhập
+// 2. Đăng nhập (Hỗ trợ trùng mã ở các vai trò khác nhau)
 exports.login = async (req, res) => {
     try {
-        const { code, password } = req.body;
+        const { code, password, role } = req.body;
         if (!code || !password) {
-            return res.status(400).json({ success: false, message: 'Vui lòng cung cấp Mã sinh viên và Mật khẩu' });
+            return res.status(400).json({ success: false, message: 'Vui lòng cung cấp Mã người dùng và Mật khẩu' });
         }
 
         const trimmedCode = code.trim();
-        // Tìm kiếm theo mã (không phân biệt hoa/thường) hoặc email
-        const user = await User.findOne({
+        const query = {
             $or: [
                 { code: { $regex: new RegExp(`^${trimmedCode}$`, 'i') } },
                 { email: trimmedCode.toLowerCase() }
             ]
-        });
-        if (!user) {
+        };
+
+        if (role) {
+            if (role === 'teacher') {
+                query.role = { $in: ['teacher', 'admin'] };
+            } else {
+                query.role = role;
+            }
+        }
+
+        const candidates = await User.find(query);
+        if (!candidates || candidates.length === 0) {
             return res.status(401).json({ success: false, message: 'Tài khoản không tồn tại trong hệ thống' });
         }
 
-        const isMatch = await user.comparePassword(password);
-        if (!isMatch) {
+        let matchedUser = null;
+        for (const candidate of candidates) {
+            const isMatch = await candidate.comparePassword(password);
+            if (isMatch) {
+                matchedUser = candidate;
+                break;
+            }
+        }
+
+        if (!matchedUser) {
             return res.status(401).json({ success: false, message: 'Mật khẩu không chính xác' });
         }
 
-        const token = generateToken(user);
+        const token = generateToken(matchedUser);
         return res.status(200).json({
             success: true,
             message: 'Đăng nhập thành công',
             token,
             user: {
-                id: user._id,
-                code: user.code,
-                name: user.name,
-                email: user.email,
-                role: user.role,
-                department: user.department,
-                major: user.major,
-                classCode: user.classCode,
-                avatar: user.avatar
+                id: matchedUser._id,
+                code: matchedUser.code,
+                name: matchedUser.name,
+                email: matchedUser.email,
+                role: matchedUser.role,
+                department: matchedUser.department,
+                major: matchedUser.major,
+                classCode: matchedUser.classCode,
+                avatar: matchedUser.avatar
             }
         });
     } catch (err) {

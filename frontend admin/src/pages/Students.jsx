@@ -5,12 +5,15 @@ import { api } from '../services/api';
 const STATUSES = {
   'active': { label: 'Đang học', cls: 'badge-success' },
   'Đang học': { label: 'Đang học', cls: 'badge-success' },
-  'graduated': { label: 'Tốt nghiệp', cls: 'badge-info' },
-  'Tốt nghiệp': { label: 'Tốt nghiệp', cls: 'badge-info' },
-  'suspended': { label: 'Đình chỉ', cls: 'badge-danger' },
-  'Đình chỉ': { label: 'Đình chỉ', cls: 'badge-danger' },
-  'on_leave': { label: 'Bảo lưu', cls: 'badge-warning' },
-  'Bảo lưu': { label: 'Bảo lưu', cls: 'badge-warning' },
+  'graduated': { label: 'Đã tốt nghiệp', cls: 'badge-info' },
+  'Tốt nghiệp': { label: 'Đã tốt nghiệp', cls: 'badge-info' },
+  'Đã tốt nghiệp': { label: 'Đã tốt nghiệp', cls: 'badge-info' },
+  'suspended': { label: 'Tạm dừng học', cls: 'badge-danger' },
+  'Đình chỉ': { label: 'Tạm dừng học', cls: 'badge-danger' },
+  'Tạm dừng học': { label: 'Tạm dừng học', cls: 'badge-danger' },
+  'on_leave': { label: 'Bảo lưu hồ sơ', cls: 'badge-warning' },
+  'Bảo lưu': { label: 'Bảo lưu hồ sơ', cls: 'badge-warning' },
+  'Bảo lưu hồ sơ': { label: 'Bảo lưu hồ sơ', cls: 'badge-warning' },
 };
 
 const initialForm = {
@@ -37,11 +40,17 @@ const Students = () => {
   const [total, setTotal] = useState(0);
   const limit = 15;
 
-  // Modal states
+  // Add Modal states
   const [showAddModal, setShowAddModal] = useState(false);
   const [formData, setFormData] = useState(initialForm);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState('');
+
+  // Edit Modal states
+  const [editingStudent, setEditingStudent] = useState(null);
+  const [editFormData, setEditFormData] = useState({ ...initialForm, password: '' });
+  const [editSubmitting, setEditSubmitting] = useState(false);
+  const [editFormError, setEditFormError] = useState('');
 
   // Delete modal states
   const [deleteTarget, setDeleteTarget] = useState(null);
@@ -84,16 +93,9 @@ const Students = () => {
 
   useEffect(() => { fetchStudents(); }, [fetchStudents]);
 
-  // Debounce search
-  const [debouncedSearch, setDebouncedSearch] = useState('');
-  useEffect(() => {
-    const t = setTimeout(() => { setSearch(debouncedSearch); setPage(1); }, 400);
-    return () => clearTimeout(t);
-  }, [debouncedSearch]);
-
   const totalPages = Math.ceil(total / limit);
 
-  // Handle Create Student
+  // Handle Add Student
   const handleOpenAdd = () => {
     setFormData(initialForm);
     setFormError('');
@@ -110,7 +112,7 @@ const Students = () => {
     setFormError('');
 
     if (!formData.code.trim() || !formData.name.trim() || !formData.email.trim()) {
-      setFormError('Vui lòng điền đầy đủ Mã sinh viên, Họ tên và Email');
+      setFormError('Vui lòng điền đầy đủ Mã SV, Họ tên và Email');
       return;
     }
 
@@ -130,6 +132,59 @@ const Students = () => {
       fetchStudents();
     } else {
       setFormError(res.message || 'Không thể thêm sinh viên. Vui lòng kiểm tra lại dữ liệu.');
+    }
+  };
+
+  // Handle Open Edit Modal
+  const handleOpenEdit = (student) => {
+    setEditingStudent(student);
+    setEditFormData({
+      code: student.code || '',
+      name: student.name || '',
+      email: student.email || '',
+      password: '',
+      phone: student.phone || '',
+      classCode: student.class || student.classCode || 'K17-CNTT01',
+      major: student.major || 'Kỹ thuật phần mềm',
+      department: student.department || 'Công nghệ thông tin',
+      academicYear: student.academicYear || '2023-2027',
+      gender: student.gender || 'Nam',
+      status: student.status || 'Đang học',
+      dateOfBirth: student.dateOfBirth || ''
+    });
+    setEditFormError('');
+  };
+
+  const handleEditFormChange = (e) => {
+    const { name, value } = e.target;
+    setEditFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleSubmitEdit = async (e) => {
+    e.preventDefault();
+    if (!editingStudent) return;
+    setEditFormError('');
+
+    if (!editFormData.code.trim() || !editFormData.name.trim() || !editFormData.email.trim()) {
+      setEditFormError('Vui lòng điền đầy đủ Mã SV, Họ tên và Email');
+      return;
+    }
+
+    if (editFormData.phone && !/^0[0-9]{9}$/.test(editFormData.phone)) {
+      setEditFormError('Số điện thoại phải gồm đúng 10 chữ số và bắt đầu bằng số 0');
+      return;
+    }
+
+    setEditSubmitting(true);
+    const res = await api.updateUser(editingStudent._id, editFormData);
+    setEditSubmitting(false);
+
+    if (res.success) {
+      setEditingStudent(null);
+      showToast(`✏️ Đã cập nhật hồ sơ sinh viên "${editFormData.name}" thành công!`);
+      fetchStudents();
+    } else {
+      setEditFormError(res.message || 'Lỗi khi cập nhật hồ sơ sinh viên');
     }
   };
 
@@ -194,9 +249,9 @@ const Students = () => {
           </button>
         </div>
 
-        {/* Search & Filter */}
+        {/* Search & Filters */}
         <div style={{ display: 'flex', gap: '10px', marginBottom: '16px', flexWrap: 'wrap' }}>
-          <div style={{ position: 'relative', flex: '1 1 260px', maxWidth: '320px' }}>
+          <div style={{ position: 'relative', flex: '1 1 240px', maxWidth: '300px' }}>
             <i className="fa-solid fa-magnifying-glass" style={{
               position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)',
               color: 'var(--text-light)', fontSize: '13px'
@@ -204,47 +259,50 @@ const Students = () => {
             <input
               type="text"
               className="form-control"
-              placeholder="Tìm theo tên, mã SV, email..."
-              value={debouncedSearch}
-              onChange={e => setDebouncedSearch(e.target.value)}
+              placeholder="Tìm tên, MSSV, email..."
+              value={search}
+              onChange={e => { setSearch(e.target.value); setPage(1); }}
               style={{ paddingLeft: '34px' }}
             />
           </div>
+
           <select
             className="form-control"
-            style={{ maxWidth: '180px' }}
+            style={{ width: 'auto', minWidth: '160px' }}
             value={statusFilter}
             onChange={e => { setStatusFilter(e.target.value); setPage(1); }}
           >
             <option value="">Tất cả trạng thái</option>
-            <option value="active">Đang học</option>
-            <option value="graduated">Tốt nghiệp</option>
-            <option value="on_leave">Bảo lưu</option>
-            <option value="suspended">Đình chỉ</option>
+            <option value="Đang học">Đang học</option>
+            <option value="Bảo lưu hồ sơ">Bảo lưu hồ sơ</option>
+            <option value="Tạm dừng học">Tạm dừng học</option>
+            <option value="Đã tốt nghiệp">Đã tốt nghiệp</option>
           </select>
+
           <button className="btn btn-secondary btn-icon" onClick={fetchStudents} title="Làm mới">
             <i className="fa-solid fa-rotate-right" style={{ fontSize: '13px' }} />
           </button>
         </div>
 
+        {/* Table */}
         <div className="table-responsive">
           <table className="custom-table">
             <thead>
               <tr>
                 <th>#</th>
-                <th>Mã SV</th>
+                <th>MSSV</th>
                 <th>Họ Tên</th>
                 <th>Mật Khẩu</th>
                 <th>Email</th>
                 <th>Lớp</th>
-                <th>Ngành</th>
-                <th>Trạng Thái</th>
+                <th>Chuyên Ngành</th>
+                <th>Trạng Thái Hồ Sơ</th>
                 <th style={{ textAlign: 'center' }}>Thao Tác</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                Array.from({ length: 6 }).map((_, i) => (
+                Array.from({ length: 5 }).map((_, i) => (
                   <tr key={i}>
                     {Array.from({ length: 9 }).map((_, j) => (
                       <td key={j}><div className="skeleton" style={{ height: 16, borderRadius: 4 }} /></td>
@@ -255,10 +313,10 @@ const Students = () => {
                 <tr>
                   <td colSpan="9">
                     <div className="empty-state">
-                      <i className="fa-solid fa-users-slash" />
+                      <i className="fa-solid fa-user-slash" />
                       <p>
-                        {debouncedSearch || statusFilter
-                          ? 'Không tìm thấy sinh viên phù hợp với bộ lọc.'
+                        {search || statusFilter
+                          ? 'Không tìm thấy sinh viên khớp với điều kiện.'
                           : 'Chưa có dữ liệu sinh viên trong hệ thống.'}
                       </p>
                       <button className="btn btn-primary" style={{ marginTop: '12px' }} onClick={handleOpenAdd}>
@@ -269,31 +327,29 @@ const Students = () => {
                 </tr>
               ) : (
                 students.map((sv, i) => {
-                  const st = STATUSES[sv.status] || { label: sv.status || '—', cls: 'badge-info' };
+                  const st = STATUSES[sv.status] || { label: sv.status || 'Đang học', cls: 'badge-success' };
+
                   return (
                     <tr key={sv._id || i}>
                       <td style={{ color: 'var(--text-light)', fontSize: '12px' }}>{(page - 1) * limit + i + 1}</td>
                       <td>
-                        <span style={{ fontFamily: 'monospace', fontWeight: 600, color: 'var(--primary)', fontSize: '12.5px' }}>
+                        <span style={{ fontFamily: 'monospace', fontWeight: 700, color: 'var(--primary)', fontSize: '12.5px' }}>
                           {sv.code || '—'}
                         </span>
                       </td>
                       <td>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                          <div style={{
-                            width: 32, height: 32, borderRadius: '50%',
-                            background: `hsl(${(sv.name?.charCodeAt(0) || 65) * 7 % 360}, 60%, 65%)`,
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            color: '#fff', fontSize: '12px', fontWeight: 700, flexShrink: 0,
-                          }}>
-                            {sv.name?.charAt(0)?.toUpperCase() || 'S'}
-                          </div>
+                          <img
+                            src={sv.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80'}
+                            alt=""
+                            style={{ width: 30, height: 30, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
+                          />
                           <span
                             onClick={() => { setViewingStudent(sv); setViewModalShowPass(false); }}
                             style={{ fontWeight: 600, color: 'var(--text-main)', cursor: 'pointer', transition: 'color 0.2s' }}
                             onMouseEnter={e => e.target.style.color = 'var(--primary)'}
                             onMouseLeave={e => e.target.style.color = 'var(--text-main)'}
-                            title="Bấm để xem hồ sơ"
+                            title="Bấm để xem hồ sơ chi tiết"
                           >
                             {sv.name || '—'}
                           </span>
@@ -350,6 +406,14 @@ const Students = () => {
                             style={{ color: 'var(--primary)' }}
                           >
                             <i className="fa-solid fa-id-card" style={{ fontSize: '12px' }} />
+                          </button>
+                          <button
+                            className="btn btn-secondary btn-sm btn-icon"
+                            title="Chỉnh sửa hồ sơ"
+                            onClick={() => handleOpenEdit(sv)}
+                            style={{ color: '#2563eb' }}
+                          >
+                            <i className="fa-solid fa-pen-to-square" style={{ fontSize: '12px' }} />
                           </button>
                           <button
                             className="btn btn-secondary btn-sm btn-icon"
@@ -413,7 +477,7 @@ const Students = () => {
       {/* Modal Thêm Sinh Viên */}
       {showAddModal && createPortal(
         <div className="modal-overlay" onClick={() => !submitting && setShowAddModal(false)}>
-          <div className="modal-content" style={{ maxWidth: '580px' }} onClick={e => e.stopPropagation()}>
+          <div className="modal-content" style={{ maxWidth: '560px' }} onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <h3>
                 <i className="fa-solid fa-user-plus" style={{ color: 'var(--primary)' }} />
@@ -451,18 +515,17 @@ const Students = () => {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
                   <div>
                     <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 600, color: 'var(--text-main)', marginBottom: '5px' }}>
-                      Mã sinh viên <span style={{ color: '#ef4444' }}>*</span>
+                      Mã sinh viên (MSSV) <span style={{ color: '#ef4444' }}>*</span>
                     </label>
                     <input
                       type="text"
                       name="code"
                       required
-                      placeholder="VD: SV002"
+                      placeholder="VD: 20012345"
                       value={formData.code}
                       onChange={handleFormChange}
                       className="form-control"
-                      style={{ width: '100%', textTransform: 'uppercase' }}
-                      autoFocus
+                      style={{ width: '100%' }}
                     />
                   </div>
 
@@ -490,7 +553,7 @@ const Students = () => {
                       type="email"
                       name="email"
                       required
-                      placeholder="VD: nguyenvana@student.edu.vn"
+                      placeholder="VD: sv.a@university.edu.vn"
                       value={formData.email}
                       onChange={handleFormChange}
                       className="form-control"
@@ -503,7 +566,7 @@ const Students = () => {
                       Số điện thoại
                     </label>
                     <input
-                      type="tel"
+                      type="text"
                       name="phone"
                       placeholder="VD: 0912345678"
                       value={formData.phone}
@@ -515,12 +578,11 @@ const Students = () => {
 
                   <div>
                     <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 600, color: 'var(--text-main)', marginBottom: '5px' }}>
-                      Lớp sinh hoạt <span style={{ color: '#ef4444' }}>*</span>
+                      Lớp sinh hoạt
                     </label>
                     <input
                       type="text"
                       name="classCode"
-                      required
                       placeholder="VD: K17-CNTT01"
                       value={formData.classCode}
                       onChange={handleFormChange}
@@ -531,7 +593,7 @@ const Students = () => {
 
                   <div>
                     <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 600, color: 'var(--text-main)', marginBottom: '5px' }}>
-                      Ngành học
+                      Chuyên ngành
                     </label>
                     <input
                       type="text"
@@ -546,52 +608,7 @@ const Students = () => {
 
                   <div>
                     <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 600, color: 'var(--text-main)', marginBottom: '5px' }}>
-                      Khoa
-                    </label>
-                    <input
-                      type="text"
-                      name="department"
-                      value={formData.department}
-                      onChange={handleFormChange}
-                      className="form-control"
-                      style={{ width: '100%' }}
-                    />
-                  </div>
-
-                  <div>
-                    <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 600, color: 'var(--text-main)', marginBottom: '5px' }}>
-                      Khóa học
-                    </label>
-                    <input
-                      type="text"
-                      name="academicYear"
-                      value={formData.academicYear}
-                      onChange={handleFormChange}
-                      className="form-control"
-                      style={{ width: '100%' }}
-                    />
-                  </div>
-
-                  <div>
-                    <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 600, color: 'var(--text-main)', marginBottom: '5px' }}>
-                      Giới tính
-                    </label>
-                    <select
-                      name="gender"
-                      value={formData.gender}
-                      onChange={handleFormChange}
-                      className="form-control"
-                      style={{ width: '100%' }}
-                    >
-                      <option value="Nam">Nam</option>
-                      <option value="Nữ">Nữ</option>
-                      <option value="Khác">Khác</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 600, color: 'var(--text-main)', marginBottom: '5px' }}>
-                      Trạng thái học tập
+                      Trạng thái hồ sơ
                     </label>
                     <select
                       name="status"
@@ -600,14 +617,14 @@ const Students = () => {
                       className="form-control"
                       style={{ width: '100%' }}
                     >
-                      <option value="Đang học">Đang học</option>
-                      <option value="Bảo lưu">Bảo lưu</option>
-                      <option value="Đình chỉ">Đình chỉ</option>
-                      <option value="Tốt nghiệp">Tốt nghiệp</option>
+                      <option value="Đang học">🟢 Đang học</option>
+                      <option value="Bảo lưu hồ sơ">🟡 Bảo lưu hồ sơ</option>
+                      <option value="Tạm dừng học">🔴 Tạm dừng học (Vô hiệu hóa)</option>
+                      <option value="Đã tốt nghiệp">🔵 Đã tốt nghiệp</option>
                     </select>
                   </div>
 
-                  <div style={{ gridColumn: '1 / -1' }}>
+                  <div>
                     <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 600, color: 'var(--text-main)', marginBottom: '5px' }}>
                       Mật khẩu khởi tạo
                     </label>
@@ -619,9 +636,6 @@ const Students = () => {
                       className="form-control"
                       style={{ width: '100%' }}
                     />
-                    <span style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginTop: '4px', display: 'block' }}>
-                      Mật khẩu mặc định là 123456. Sinh viên có thể đổi sau khi đăng nhập.
-                    </span>
                   </div>
                 </div>
               </div>
@@ -658,6 +672,204 @@ const Students = () => {
         document.body
       )}
 
+      {/* Modal Chỉnh Sửa Hồ Sơ Sinh Viên */}
+      {editingStudent && createPortal(
+        <div className="modal-overlay" onClick={() => !editSubmitting && setEditingStudent(null)}>
+          <div className="modal-content" style={{ maxWidth: '580px' }} onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>
+                <i className="fa-solid fa-pen-to-square" style={{ color: 'var(--primary)' }} />
+                Chỉnh Sửa Hồ Sơ Sinh Viên
+              </h3>
+              <button
+                className="modal-close"
+                onClick={() => !editSubmitting && setEditingStudent(null)}
+                disabled={editSubmitting}
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmitEdit}>
+              <div className="modal-body" style={{ maxHeight: '72vh', overflowY: 'auto' }}>
+                {editFormError && (
+                  <div style={{
+                    padding: '10px 14px',
+                    borderRadius: '8px',
+                    background: 'rgba(239, 68, 68, 0.1)',
+                    border: '1px solid rgba(239, 68, 68, 0.3)',
+                    color: '#dc2626',
+                    fontSize: '13px',
+                    marginBottom: '16px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px'
+                  }}>
+                    <i className="fa-solid fa-circle-exclamation" />
+                    <span>{editFormError}</span>
+                  </div>
+                )}
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 600, color: 'var(--text-main)', marginBottom: '5px' }}>
+                      Mã sinh viên (MSSV) <span style={{ color: '#ef4444' }}>*</span>
+                    </label>
+                    <input
+                      type="text"
+                      name="code"
+                      required
+                      value={editFormData.code}
+                      onChange={handleEditFormChange}
+                      className="form-control"
+                      style={{ width: '100%' }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 600, color: 'var(--text-main)', marginBottom: '5px' }}>
+                      Họ và tên <span style={{ color: '#ef4444' }}>*</span>
+                    </label>
+                    <input
+                      type="text"
+                      name="name"
+                      required
+                      value={editFormData.name}
+                      onChange={handleEditFormChange}
+                      className="form-control"
+                      style={{ width: '100%' }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 600, color: 'var(--text-main)', marginBottom: '5px' }}>
+                      Email <span style={{ color: '#ef4444' }}>*</span>
+                    </label>
+                    <input
+                      type="email"
+                      name="email"
+                      required
+                      value={editFormData.email}
+                      onChange={handleEditFormChange}
+                      className="form-control"
+                      style={{ width: '100%' }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 600, color: 'var(--text-main)', marginBottom: '5px' }}>
+                      Số điện thoại
+                    </label>
+                    <input
+                      type="text"
+                      name="phone"
+                      placeholder="0912345678"
+                      value={editFormData.phone}
+                      onChange={handleEditFormChange}
+                      className="form-control"
+                      style={{ width: '100%' }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 600, color: 'var(--text-main)', marginBottom: '5px' }}>
+                      Lớp sinh hoạt
+                    </label>
+                    <input
+                      type="text"
+                      name="classCode"
+                      value={editFormData.classCode}
+                      onChange={handleEditFormChange}
+                      className="form-control"
+                      style={{ width: '100%' }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 600, color: 'var(--text-main)', marginBottom: '5px' }}>
+                      Chuyên ngành
+                    </label>
+                    <input
+                      type="text"
+                      name="major"
+                      value={editFormData.major}
+                      onChange={handleEditFormChange}
+                      className="form-control"
+                      style={{ width: '100%' }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 600, color: 'var(--text-main)', marginBottom: '5px' }}>
+                      Trạng thái hồ sơ (Vô hiệu hóa)
+                    </label>
+                    <select
+                      name="status"
+                      value={editFormData.status}
+                      onChange={handleEditFormChange}
+                      className="form-control"
+                      style={{
+                        width: '100%',
+                        fontWeight: 600,
+                        color: editFormData.status === 'Tạm dừng học' ? '#dc2626' : editFormData.status === 'Bảo lưu hồ sơ' ? '#b45309' : '#059669'
+                      }}
+                    >
+                      <option value="Đang học">🟢 Đang học (Hoạt động)</option>
+                      <option value="Bảo lưu hồ sơ">🟡 Bảo lưu hồ sơ</option>
+                      <option value="Tạm dừng học">🔴 Tạm dừng học (Vô hiệu hóa)</option>
+                      <option value="Đã tốt nghiệp">🔵 Đã tốt nghiệp</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 600, color: 'var(--text-main)', marginBottom: '5px' }}>
+                      Đổi mật khẩu mới (Nếu cần)
+                    </label>
+                    <input
+                      type="text"
+                      name="password"
+                      placeholder="Để trống nếu không đổi"
+                      value={editFormData.password}
+                      onChange={handleEditFormChange}
+                      className="form-control"
+                      style={{ width: '100%' }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="modal-footer">
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setEditingStudent(null)}
+                  disabled={editSubmitting}
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  disabled={editSubmitting}
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+                >
+                  {editSubmitting ? (
+                    <>
+                      <i className="fa-solid fa-spinner fa-spin" /> Đang lưu...
+                    </>
+                  ) : (
+                    <>
+                      <i className="fa-solid fa-floppy-disk" /> Lưu Thay Đổi
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>,
+        document.body
+      )}
+
       {/* Modal Xác Nhận Xóa */}
       {deleteTarget && createPortal(
         <div className="modal-overlay" onClick={() => !deleting && setDeleteTarget(null)}>
@@ -678,22 +890,8 @@ const Students = () => {
 
             <div className="modal-body">
               <p style={{ fontSize: '13.5px', lineHeight: 1.6, color: 'var(--text-main)', margin: 0 }}>
-                Bạn có chắc chắn muốn xóa sinh viên <strong>{deleteTarget.name}</strong> (Mã SV: <span style={{ fontFamily: 'monospace', color: 'var(--primary)' }}>{deleteTarget.code}</span>) khỏi hệ thống?
+                Bạn có chắc chắn muốn xóa sinh viên <strong>{deleteTarget.name}</strong> (MSSV: <span style={{ fontFamily: 'monospace', color: 'var(--primary)' }}>{deleteTarget.code}</span>) khỏi hệ thống?
               </p>
-              <div style={{
-                marginTop: '12px',
-                padding: '10px 12px',
-                borderRadius: '8px',
-                background: 'rgba(239, 68, 68, 0.08)',
-                color: '#b91c1c',
-                fontSize: '12px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px'
-              }}>
-                <i className="fa-solid fa-info-circle" />
-                <span>Hành động này sẽ xóa dữ liệu sinh viên vĩnh viễn và không thể khôi phục.</span>
-              </div>
             </div>
 
             <div className="modal-footer">
@@ -738,7 +936,7 @@ const Students = () => {
       {/* Modal Xem Hồ Sơ Chi Tiết Sinh Viên */}
       {viewingStudent && createPortal(
         <div className="modal-overlay" onClick={() => setViewingStudent(null)}>
-          <div className="modal-content" style={{ maxWidth: '600px' }} onClick={e => e.stopPropagation()}>
+          <div className="modal-content" style={{ maxWidth: '620px' }} onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <h3>
                 <i className="fa-solid fa-id-card" style={{ color: 'var(--primary)' }} />
@@ -748,7 +946,6 @@ const Students = () => {
             </div>
 
             <div className="modal-body" style={{ maxHeight: '75vh', overflowY: 'auto' }}>
-              {/* Header Profile Card */}
               <div style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -759,29 +956,18 @@ const Students = () => {
                 border: '1px solid var(--border-color)',
                 marginBottom: '18px'
               }}>
-                <div style={{
-                  width: '56px',
-                  height: '56px',
-                  borderRadius: '50%',
-                  background: 'linear-gradient(135deg, #2563eb, #7c3aed)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: '#fff',
-                  fontSize: '22px',
-                  fontWeight: 800,
-                  flexShrink: 0,
-                  boxShadow: '0 4px 12px rgba(37,99,235,0.3)'
-                }}>
-                  {viewingStudent.name?.charAt(0)?.toUpperCase() || 'S'}
-                </div>
+                <img
+                  src={viewingStudent.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80'}
+                  alt=""
+                  style={{ width: '56px', height: '56px', borderRadius: '50%', objectFit: 'cover', flexShrink: 0, border: '2px solid var(--primary)' }}
+                />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
                     <h4 style={{ margin: 0, fontSize: '17px', fontWeight: 700, color: 'var(--text-main)' }}>
                       {viewingStudent.name}
                     </h4>
-                    <span className={`badge ${STATUSES[viewingStudent.status]?.cls || 'badge-info'}`}>
-                      {STATUSES[viewingStudent.status]?.label || viewingStudent.status || 'Đang học'}
+                    <span className={`badge ${(STATUSES[viewingStudent.status] || { cls: 'badge-success' }).cls}`}>
+                      {(STATUSES[viewingStudent.status] || { label: viewingStudent.status || 'Đang học' }).label}
                     </span>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginTop: '4px', flexWrap: 'wrap' }}>
@@ -795,7 +981,6 @@ const Students = () => {
                 </div>
               </div>
 
-              {/* Grid Information */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div style={{ padding: '12px', borderRadius: '10px', background: '#fafbfc', border: '1px solid #f1f5f9' }}>
                   <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, marginBottom: '4px' }}>
@@ -845,10 +1030,10 @@ const Students = () => {
 
                 <div style={{ padding: '12px', borderRadius: '10px', background: '#fafbfc', border: '1px solid #f1f5f9' }}>
                   <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, marginBottom: '4px' }}>
-                    Khoa / Viện
+                    Lớp Sinh Hoạt
                   </div>
                   <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-main)' }}>
-                    {viewingStudent.department || 'Công nghệ thông tin'}
+                    {viewingStudent.class || viewingStudent.classCode || '—'}
                   </div>
                 </div>
 
@@ -863,10 +1048,10 @@ const Students = () => {
 
                 <div style={{ padding: '12px', borderRadius: '10px', background: '#fafbfc', border: '1px solid #f1f5f9' }}>
                   <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, marginBottom: '4px' }}>
-                    Lớp Sinh Hoạt
+                    Khoa / Viện
                   </div>
                   <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-main)' }}>
-                    {viewingStudent.class || viewingStudent.classCode || '—'}
+                    {viewingStudent.department || 'Công nghệ thông tin'}
                   </div>
                 </div>
 
@@ -890,31 +1075,33 @@ const Students = () => {
 
                 <div style={{ padding: '12px', borderRadius: '10px', background: '#fafbfc', border: '1px solid #f1f5f9' }}>
                   <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, marginBottom: '4px' }}>
-                    Ngày Sinh
+                    Trạng Thái Hồ Sơ
                   </div>
                   <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-main)' }}>
-                    {viewingStudent.dateOfBirth || '— Chưa cập nhật'}
-                  </div>
-                </div>
-
-                <div style={{ gridColumn: '1 / -1', padding: '12px', borderRadius: '10px', background: '#fafbfc', border: '1px solid #f1f5f9' }}>
-                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, marginBottom: '4px' }}>
-                    Ngày Tạo Tài Khoản
-                  </div>
-                  <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-main)' }}>
-                    {viewingStudent.createdAt ? new Date(viewingStudent.createdAt).toLocaleString('vi-VN') : '—'}
+                    {(STATUSES[viewingStudent.status] || { label: viewingStudent.status || 'Đang học' }).label}
                   </div>
                 </div>
               </div>
             </div>
 
-            <div className="modal-footer">
+            <div className="modal-footer" style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setViewingStudent(null)}
+              >
+                Đóng
+              </button>
               <button
                 type="button"
                 className="btn btn-primary"
-                onClick={() => setViewingStudent(null)}
+                onClick={() => {
+                  const studentToEdit = viewingStudent;
+                  setViewingStudent(null);
+                  handleOpenEdit(studentToEdit);
+                }}
               >
-                Đóng Hồ Sơ
+                <i className="fa-solid fa-pen-to-square" /> Chỉnh Sửa Hồ Sơ
               </button>
             </div>
           </div>

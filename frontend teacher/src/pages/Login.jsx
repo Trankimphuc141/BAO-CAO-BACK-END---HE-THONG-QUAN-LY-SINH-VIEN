@@ -17,8 +17,13 @@ function Login() {
         setError('');
         setLoading(true);
         try {
-            const response = await axios.post('/auth/login', { code, password });
+            const response = await axios.post('/auth/login', { code, password, role: 'teacher' });
             if (response.data.success) {
+                const user = response.data.user;
+                if (user.role !== 'teacher' && user.role !== 'admin') {
+                    setError('Tài khoản của bạn không có quyền đăng nhập vào Cổng Giảng Viên.');
+                    return;
+                }
                 dispatch(loginSuccess(response.data));
                 navigate('/');
             }

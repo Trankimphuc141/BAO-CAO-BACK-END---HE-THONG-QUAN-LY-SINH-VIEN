@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
 const userSchema = new mongoose.Schema({
-    code: { type: String, required: true, unique: true }, // Mã SV / Mã GV / Mã Admin: SV001, GV001, AD001
+    code: { type: String, required: true }, // Mã SV / Mã GV / Mã Admin
     name: { type: String, required: true },
     email: { type: String, required: true, unique: true },
     password: { type: String, required: true, default: '123456' },
@@ -18,7 +18,6 @@ const userSchema = new mongoose.Schema({
         type: String,
         validate: {
             validator: function(v) {
-                // Bỏ trống thì không bắt buộc — chỉ validate khi có nhập
                 if (!v) return true;
                 return /^0[0-9]{9}$/.test(v);
             },
@@ -26,13 +25,23 @@ const userSchema = new mongoose.Schema({
         }
     },
     avatar: { type: String, default: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80' },
-    department: { type: String, default: 'Công nghệ thông tin' }, // Khoa
-    major: { type: String, default: 'Kỹ thuật phần mềm' },       // Ngành
-    classCode: { type: String, default: 'K17-CNTT01' },           // Lớp sinh hoạt
-    academicYear: { type: String, default: '2023-2027' },         // Khóa học
-    status: { type: String, enum: ['Đang học', 'Tốt nghiệp', 'Bảo lưu', 'Đình chỉ', 'Đang công tác'], default: 'Đang học' },
+    department: { type: String, default: 'Công nghệ thông tin' },
+    major: { type: String, default: 'Kỹ thuật phần mềm' },
+    classCode: { type: String, default: 'K17-CNTT01' },
+    academicYear: { type: String, default: '2023-2027' },
+    status: { 
+        type: String, 
+        enum: [
+            'Đang học', 'Tốt nghiệp', 'Đã tốt nghiệp', 'Bảo lưu', 'Bảo lưu hồ sơ', 
+            'Đình chỉ', 'Tạm dừng học', 'Đang công tác', 'Đang làm', 'Nghỉ việc'
+        ], 
+        default: 'Đang học' 
+    },
     createdAt: { type: Date, default: Date.now }
 });
+
+// Chỉ số duy nhất kết hợp giữa (Mã người dùng + Vai trò)
+userSchema.index({ code: 1, role: 1 }, { unique: true });
 
 // Mã hóa mật khẩu trước khi lưu
 userSchema.pre('save', async function() {

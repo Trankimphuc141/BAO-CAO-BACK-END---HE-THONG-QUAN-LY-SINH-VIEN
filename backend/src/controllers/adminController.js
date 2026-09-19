@@ -3,10 +3,11 @@ const User = require('../models/User');
 // Map frontend filter status keys to DB values
 const STATUS_MAP = {
     'active': 'Đang học',
-    'graduated': 'Tốt nghiệp',
-    'suspended': 'Đình chỉ',
-    'on_leave': 'Bảo lưu',
-    'working': 'Đang công tác'
+    'graduated': 'Đã tốt nghiệp',
+    'suspended': 'Tạm dừng học',
+    'on_leave': 'Bảo lưu hồ sơ',
+    'working': 'Đang làm',
+    'resigned': 'Nghỉ việc'
 };
 
 // GET /api/admin/users
@@ -47,7 +48,6 @@ exports.getUsers = async (req, res) => {
             .limit(limit)
             .sort({ createdAt: -1 });
 
-        // Map classCode to class and guarantee plainPassword for admin viewing
         const mappedUsers = users.map(u => {
             const obj = u.toObject();
             obj.class = obj.classCode || '';
@@ -102,18 +102,26 @@ exports.createUser = async (req, res) => {
 
         const cleanCode = code.trim().toUpperCase();
         const cleanEmail = email.trim().toLowerCase();
+        const targetRole = role || 'student';
 
-        // Check duplicates
-        const existing = await User.findOne({
-            $or: [{ code: cleanCode }, { email: cleanEmail }]
+        const existingCode = await User.findOne({
+            code: cleanCode,
+            role: targetRole
         });
 
-        if (existing) {
+        if (existingCode) {
+            const roleLabel = targetRole === 'teacher' ? 'Giảng viên' : targetRole === 'admin' ? 'Quản trị viên' : 'Sinh viên';
             return res.status(400).json({
                 success: false,
-                message: existing.code === cleanCode
-                    ? `Mã ${cleanCode} đã tồn tại trong hệ thống`
-                    : `Email ${cleanEmail} đã được sử dụng`
+                message: `Mã ${cleanCode} đã tồn tại trong danh sách ${roleLabel}`
+            });
+        }
+
+        const existingEmail = await User.findOne({ email: cleanEmail });
+        if (existingEmail) {
+            return res.status(400).json({
+                success: false,
+                message: `Email ${cleanEmail} đã được sử dụng bởi tài khoản khác`
             });
         }
 
@@ -124,7 +132,7 @@ exports.createUser = async (req, res) => {
             });
         }
 
-        const defaultStatus = (role === 'teacher') ? 'Đang công tác' : 'Đang học';
+        const defaultStatus = (targetRole === 'teacher') ? 'Đang làm' : 'Đang học';
         const mappedStatus = STATUS_MAP[status] || status || defaultStatus;
         const rawPass = (password || '123456').trim();
 
@@ -134,13 +142,13 @@ exports.createUser = async (req, res) => {
             email: cleanEmail,
             password: rawPass,
             plainPassword: rawPass,
-            role: role || 'student',
+            role: targetRole,
             gender: gender || 'Nam',
             dateOfBirth: dateOfBirth || '',
             phone: phone || '',
-            department: department || (role === 'teacher' ? 'Công nghệ thông tin' : 'Công nghệ thông tin'),
-            major: major || (role === 'student' ? 'Kỹ thuật phần mềm' : undefined),
-            classCode: classCode || (role === 'student' ? 'K17-CNTT01' : undefined),
+            department: department || 'Công nghệ thông tin',
+            major: major || (targetRole === 'student' ? 'Kỹ thuật phần mềm' : undefined),
+            classCode: classCode || (targetRole === 'student' ? 'K17-CNTT01' : undefined),
             academicYear: academicYear || '2023-2027',
             status: mappedStatus
         });
@@ -163,11 +171,44 @@ exports.createUser = async (req, res) => {
 // PUT /api/admin/users/:id
 exports.updateUser = async (req, res) => {
     try {
-        const updateData = { ...req.body };
-        delete updateData.password; // Don't update password directly through this endpoint
+        const existingUser = await User.findById(req.params.id);
+        if (!existingUser) {
+            return res.status(404).json({ success: false, message: 'Không tìm thấy người dùng' });
+        }
 
-        if (updateData.code) updateData.code = updateData.code.trim().toUpperCase();
-        if (updateData.email) updateData.email = updateData.email.trim().toLowerCase();
+        const updateData = { ...req.body };
+
+        if (updateData.code) {
+            const cleanCode = updateData.code.trim().toUpperCase();
+            const targetRole = updateData.role || existingUser.role;
+            const duplicateCode = await User.findOne({
+                code: cleanCode,
+                role: targetRole,
+                _id: { $ne: req.params.id }
+            });
+            if (duplicateCode) {
+                return res.status(400).json({
+                    success: false,
+                    message: `Mã ${cleanCode} đã tồn tại trong danh sách ${targetRole === 'teacher' ? 'Giảng viên' : 'Sinh viên'}`
+                });
+            }
+            existingUser.code = cleanCode;
+        }
+
+        if (updateData.email) {
+            const cleanEmail = updateData.email.trim().toLowerCase();
+            const duplicateEmail = await User.findOne({
+                email: cleanEmail,
+                _id: { $ne: req.params.id }
+            });
+            if (duplicateEmail) {
+                return res.status(400).json({
+                    success: false,
+                    message: `Email ${cleanEmail} đã được sử dụng bởi tài khoản khác`
+                });
+            }
+            existingUser.email = cleanEmail;
+        }
 
         if (updateData.phone && !/^0[0-9]{9}$/.test(updateData.phone)) {
             return res.status(400).json({
@@ -175,22 +216,29 @@ exports.updateUser = async (req, res) => {
                 message: 'Số điện thoại phải gồm đúng 10 chữ số và bắt đầu bằng số 0'
             });
         }
+        if (updateData.phone !== undefined) existingUser.phone = updateData.phone;
 
-        if (updateData.status && STATUS_MAP[updateData.status]) {
-            updateData.status = STATUS_MAP[updateData.status];
+        if (updateData.password && updateData.password.trim()) {
+            const rawPass = updateData.password.trim();
+            existingUser.password = rawPass; // Hash via pre-save
+            existingUser.plainPassword = rawPass;
         }
 
-        const user = await User.findByIdAndUpdate(
-            req.params.id,
-            updateData,
-            { new: true, runValidators: true }
-        ).select('-password');
-
-        if (!user) {
-            return res.status(404).json({ success: false, message: 'Không tìm thấy người dùng' });
+        if (updateData.name) existingUser.name = updateData.name.trim();
+        if (updateData.gender) existingUser.gender = updateData.gender;
+        if (updateData.dateOfBirth !== undefined) existingUser.dateOfBirth = updateData.dateOfBirth;
+        if (updateData.department) existingUser.department = updateData.department;
+        if (updateData.major) existingUser.major = updateData.major;
+        if (updateData.classCode) existingUser.classCode = updateData.classCode;
+        if (updateData.academicYear) existingUser.academicYear = updateData.academicYear;
+        if (updateData.status) {
+            existingUser.status = STATUS_MAP[updateData.status] || updateData.status;
         }
 
-        const userObj = user.toObject();
+        await existingUser.save();
+
+        const userObj = existingUser.toObject();
+        delete userObj.password;
         userObj.class = userObj.classCode || '';
 
         res.json({
@@ -211,18 +259,15 @@ exports.deleteUser = async (req, res) => {
             return res.status(404).json({ success: false, message: 'Không tìm thấy người dùng' });
         }
 
-        // Prevent admin from deleting themselves
-        if (user.role === 'admin' && req.user && user._id.toString() === req.user.id) {
-            return res.status(400).json({
-                success: false,
-                message: 'Không thể xóa tài khoản admin đang đăng nhập hiện tại'
-            });
+        if (user.code === 'admin' || user.role === 'admin') {
+            return res.status(403).json({ success: false, message: 'Không thể xóa tài khoản Quản trị viên hệ thống' });
         }
 
         await User.findByIdAndDelete(req.params.id);
+
         res.json({
             success: true,
-            message: `Đã xóa ${user.role === 'teacher' ? 'giảng viên' : 'sinh viên'} ${user.name} (${user.code}) thành công`
+            message: `Đã xóa tài khoản ${user.name} (${user.code})`
         });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });

@@ -1,84 +1,133 @@
-import React from 'react';
+import React, { useState } from 'react';
 
 export default function Sidebar({ activeTab, onTabChange, currentUser, unreadCount = 0 }) {
-  const navItems = [
-    { id: 'dashboard', label: 'Tổng Quan Học Tập', icon: 'fa-chart-pie', group: 'Cổng Cá Nhân' },
-    { id: 'notifications', label: 'Thông Báo Giảng Viên', icon: 'fa-bell', group: 'Cổng Cá Nhân' },
-    { id: 'portal', label: 'Hồ Sơ & Bảng Điểm', icon: 'fa-id-card', group: 'Cổng Cá Nhân' },
-    { id: 'timetable', label: 'Lịch Học Cá Nhân', icon: 'fa-calendar-days', group: 'Cổng Cá Nhân' },
-    { id: 'attendance', label: 'Theo Dõi Chuyên Cần', icon: 'fa-clipboard-user', group: 'Cổng Cá Nhân' },
-    { id: 'exams', label: 'Lịch Thi Cá Nhân', icon: 'fa-pen-ruler', group: 'Cổng Cá Nhân' },
-    { id: 'curriculum', label: 'Chương Trình Đào Tạo', icon: 'fa-graduation-cap', group: 'Học Thuật & Tốt Nghiệp' },
-    { id: 'registration', label: 'Đăng Ký Học Phần', icon: 'fa-list-check', group: 'Học Thuật & Tốt Nghiệp' },
-    { id: 'survey', label: 'Đánh Giá Giảng Dạy', icon: 'fa-star-half-stroke', group: 'Học Thuật & Tốt Nghiệp' },
-    { id: 'thesis', label: 'Nộp Đồ Án / Luận Văn', icon: 'fa-file-arrow-up', group: 'Học Thuật & Tốt Nghiệp' }
+  // Cấu trúc phân mục chủ đề navbar sinh viên
+  const menuGroups = [
+    {
+      id: 'general',
+      title: 'Tổng Quan',
+      icon: 'fa-grip',
+      color: '#818cf8',
+      items: [
+        { id: 'dashboard', label: 'Trang Chủ', icon: 'fa-house' },
+        { id: 'notifications', label: 'Thông Báo', icon: 'fa-bell', hasBadge: true },
+      ]
+    },
+    {
+      id: 'learning',
+      title: 'Học Tập',
+      icon: 'fa-book-open',
+      color: '#34d399',
+      items: [
+        { id: 'portal', label: 'Hồ Sơ & Bảng Điểm', icon: 'fa-id-card-clip' },
+        { id: 'timetable', label: 'Lịch Học', icon: 'fa-calendar-days' },
+        { id: 'attendance', label: 'Chuyên Cần', icon: 'fa-user-check' },
+        { id: 'exams', label: 'Lịch Thi', icon: 'fa-file-pen' },
+      ]
+    },
+    {
+      id: 'academic',
+      title: 'Đào Tạo',
+      icon: 'fa-graduation-cap',
+      color: '#f59e0b',
+      items: [
+        { id: 'curriculum', label: 'Chương Trình ĐT', icon: 'fa-award' },
+        { id: 'registration', label: 'Đăng Ký HP', icon: 'fa-rectangle-list' },
+        { id: 'survey', label: 'Đánh Giá GD', icon: 'fa-star' },
+        { id: 'thesis', label: 'Nộp Đồ Án', icon: 'fa-file-arrow-up' },
+      ]
+    }
   ];
+
+  // Trạng thái mở/đóng từng nhóm (mặc định mở tất cả)
+  const [openGroups, setOpenGroups] = useState({
+    general: true,
+    learning: true,
+    academic: true,
+  });
+
+  const toggleGroup = (groupId) => {
+    setOpenGroups(prev => ({
+      ...prev,
+      [groupId]: !prev[groupId]
+    }));
+  };
 
   return (
     <aside className="sidebar">
-      <div className="sidebar-header" style={{ padding: '16px 20px' }}>
-        <div style={{
-          width: '46px', height: '36px', borderRadius: '6px',
-          background: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.3)', overflow: 'hidden', padding: '2px', flexShrink: 0
-        }}>
-          <img src="/vus_logo.png" alt="VUS" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+      {/* Header */}
+      <div className="sidebar-header">
+        <div className="sidebar-logo-wrap">
+          <img src="/vus_logo.png" alt="VUS" className="sidebar-logo-img" />
         </div>
         <div className="brand-text">
-          <h2 style={{ background: 'linear-gradient(to right, #fff, #93c5fd)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', fontWeight: 800 }}>VUS</h2>
-          <span>Cổng Thông Tin Sinh Viên</span>
+          <h2 className="brand-name">VUS Student</h2>
+          <span className="brand-sub">Hệ Thống Quản Lý</span>
         </div>
       </div>
 
+      {/* Portal badge */}
       <div className="portal-mode-badge">
         <i className="fa-solid fa-user-graduate"></i>
-        <span>Tài Khoản Sinh Viên</span>
+        <span>Cổng Sinh Viên</span>
       </div>
 
-      <div className="nav-group">
-        <div className="nav-label">Cổng Cá Nhân</div>
-        {navItems.filter(i => i.group === 'Cổng Cá Nhân').map(item => (
-          <a
-            key={item.id}
-            className={`nav-item ${activeTab === item.id ? 'active' : ''}`}
-            onClick={() => onTabChange(item.id)}
-            style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <i className={`fa-solid ${item.icon}`} style={{ width: '18px', textAlign: 'center' }}></i>
-              <span>{item.label}</span>
+      {/* Navigation */}
+      <nav className="nav-group">
+        {menuGroups.map(group => {
+          const isOpen = !!openGroups[group.id];
+          const itemCount = group.items.length;
+
+          return (
+            <div key={group.id} className="nav-category-block">
+              {/* Group header */}
+              <button
+                className={`nav-group-header ${isOpen ? 'open' : ''}`}
+                onClick={() => toggleGroup(group.id)}
+                title={isOpen ? 'Thu gọn' : 'Mở rộng'}
+              >
+                <div className="nav-group-left">
+                  <span className="nav-group-dot" style={{ background: group.color }}></span>
+                  <i className={`fa-solid ${group.icon} nav-group-icon`} style={{ color: group.color }}></i>
+                  <span className="nav-group-title">{group.title}</span>
+                </div>
+                <div className="nav-group-right">
+                  <span className="nav-group-count">{itemCount}</span>
+                  <i className={`fa-solid fa-chevron-right nav-group-chevron ${isOpen ? 'rotated' : ''}`}></i>
+                </div>
+              </button>
+
+              {/* Items with smooth height animation */}
+              <div className={`nav-items-wrapper ${isOpen ? 'expanded' : 'collapsed'}`}>
+                <div className="nav-category-items">
+                  {group.items.map(item => {
+                    const isActive = activeTab === item.id;
+                    return (
+                      <a
+                        key={item.id}
+                        className={`nav-item ${isActive ? 'active' : ''}`}
+                        onClick={() => onTabChange(item.id)}
+                        title={item.label}
+                      >
+                        <span className={`nav-item-icon-wrap ${isActive ? 'active-icon' : ''}`}>
+                          <i className={`fa-solid ${item.icon}`}></i>
+                        </span>
+                        <span className="nav-item-label">{item.label}</span>
+                        {item.hasBadge && unreadCount > 0 && (
+                          <span className="nav-badge">{unreadCount > 99 ? '99+' : unreadCount}</span>
+                        )}
+                        {isActive && <span className="nav-active-bar"></span>}
+                      </a>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
-            {item.id === 'notifications' && unreadCount > 0 && (
-              <span style={{
-                background: '#ef4444',
-                color: '#fff',
-                fontSize: '10px',
-                fontWeight: 800,
-                padding: '1px 6px',
-                borderRadius: '10px',
-                minWidth: '16px',
-                textAlign: 'center',
-                boxShadow: '0 0 8px rgba(239, 68, 68, 0.4)'
-              }}>
-                {unreadCount}
-              </span>
-            )}
-          </a>
-        ))}
+          );
+        })}
+      </nav>
 
-        <div className="nav-label">Học Thuật & Tốt Nghiệp</div>
-        {navItems.filter(i => i.group === 'Học Thuật & Tốt Nghiệp').map(item => (
-          <a
-            key={item.id}
-            className={`nav-item ${activeTab === item.id ? 'active' : ''}`}
-            onClick={() => onTabChange(item.id)}
-          >
-            <i className={`fa-solid ${item.icon}`}></i>
-            <span>{item.label}</span>
-          </a>
-        ))}
-      </div>
-
+      {/* Footer */}
       <div className="sidebar-footer">
         <div className="user-quick-profile">
           <img
@@ -88,7 +137,10 @@ export default function Sidebar({ activeTab, onTabChange, currentUser, unreadCou
           />
           <div className="user-info">
             <div className="user-name">{currentUser ? currentUser.name : 'Chưa đăng nhập'}</div>
-            <div className="user-role-badge">SINH VIÊN</div>
+            <div className="user-role-badge">
+              <i className="fa-solid fa-circle-dot" style={{ color: '#4ade80', fontSize: '7px' }}></i>
+              &nbsp;MÃ SV: {currentUser?.code || 'N/A'}
+            </div>
           </div>
         </div>
       </div>

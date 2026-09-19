@@ -222,13 +222,25 @@ exports.getSectionGrades = async (req, res) => {
 // 7. Sinh viên quét mã QR tự điểm danh
 exports.qrCheckIn = async (req, res) => {
     try {
-        const { qrToken } = req.body;
+        let { qrToken } = req.body;
         if (!qrToken) {
             return res.status(400).json({ success: false, message: 'Thiếu mã QR token' });
         }
 
+        let searchToken = qrToken.toString().trim();
+        if (searchToken.startsWith('{')) {
+            try {
+                const parsed = JSON.parse(searchToken);
+                if (parsed.token) {
+                    searchToken = parsed.token;
+                }
+            } catch (e) {
+                console.error('Error parsing JSON QR token:', e);
+            }
+        }
+
         // Tìm buổi điểm danh có qrToken khớp
-        const attendance = await Attendance.findOne({ qrToken });
+        const attendance = await Attendance.findOne({ qrToken: searchToken });
         if (!attendance) {
             return res.status(400).json({ success: false, message: 'Mã QR không hợp lệ hoặc không tồn tại' });
         }
@@ -238,14 +250,19 @@ exports.qrCheckIn = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Mã QR đã hết hiệu lực điểm danh' });
         }
 
-        // Kiểm tra xem sinh viên có trong lớp học phần này không
+        // Kiểm tra xem sinh viên có trong lớp học phần này không (Safely compare ObjectId strings)
         const section = await ClassSection.findById(attendance.classSection);
-        if (!section || !section.students.includes(req.user.id)) {
+        if (!section) {
+            return res.status(404).json({ success: false, message: 'Không tìm thấy lớp học phần' });
+        }
+
+        const isStudentEnrolled = section.students.some(s => (s._id ? s._id.toString() : s.toString()) === req.user.id.toString());
+        if (!isStudentEnrolled) {
             return res.status(403).json({ success: false, message: 'Bạn không thuộc danh sách lớp học phần này' });
         }
 
         // Cập nhật trạng thái điểm danh của sinh viên trong records
-        let recordIndex = attendance.records.findIndex(r => r.student.toString() === req.user.id);
+        let recordIndex = attendance.records.findIndex(r => r.student.toString() === req.user.id.toString());
         
         const now = new Date();
         if (recordIndex !== -1) {

@@ -8,13 +8,25 @@ const getHeaders = () => {
   };
 };
 
+const handleRes = async (res) => {
+  const data = await res.json();
+  if (res.status === 401 || res.status === 403 || data.message === 'Token không hợp lệ hoặc đã hết hạn' || data.message === 'Không tìm thấy token hợp lệ') {
+    localStorage.removeItem('adminToken');
+    localStorage.removeItem('adminUser');
+    if (window.location.pathname !== '/login') {
+      window.location.href = '/login';
+    }
+  }
+  return data;
+};
+
 export const api = {
   login: async (code, password) => {
     try {
       const response = await fetch(`${API_BASE}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code, password }),
+        body: JSON.stringify({ code, password, role: 'admin' }),
       });
       const data = await response.json();
       return data;
@@ -31,7 +43,7 @@ export const api = {
       const res = await fetch(`${API_BASE}/admin/users?${query}`, {
         headers: getHeaders(),
       });
-      return await res.json();
+      return await handleRes(res);
     } catch (err) {
       console.error('getUsers error:', err);
       return { success: false, message: 'Lỗi khi tải danh sách', data: [] };
@@ -43,7 +55,7 @@ export const api = {
       const res = await fetch(`${API_BASE}/admin/users/${id}`, {
         headers: getHeaders(),
       });
-      return await res.json();
+      return await handleRes(res);
     } catch (err) {
       console.error('getUserById error:', err);
       return { success: false, message: 'Lỗi khi tải thông tin chi tiết' };
@@ -57,7 +69,7 @@ export const api = {
         headers: getHeaders(),
         body: JSON.stringify(userData),
       });
-      return await res.json();
+      return await handleRes(res);
     } catch (err) {
       console.error('createUser error:', err);
       return { success: false, message: 'Lỗi khi thêm người dùng' };
@@ -71,7 +83,7 @@ export const api = {
         headers: getHeaders(),
         body: JSON.stringify(userData),
       });
-      return await res.json();
+      return await handleRes(res);
     } catch (err) {
       console.error('updateUser error:', err);
       return { success: false, message: 'Lỗi khi cập nhật' };
@@ -84,7 +96,7 @@ export const api = {
         method: 'DELETE',
         headers: getHeaders(),
       });
-      return await res.json();
+      return await handleRes(res);
     } catch (err) {
       console.error('deleteUser error:', err);
       return { success: false, message: 'Lỗi khi xóa người dùng' };
@@ -97,7 +109,7 @@ export const api = {
   getMajors: async () => {
     try {
       const res = await fetch(`${API_BASE}/academic-mgmt/majors`, { headers: getHeaders() });
-      return await res.json();
+      return await handleRes(res);
     } catch (err) {
       return { success: false, data: [] };
     }
@@ -110,7 +122,7 @@ export const api = {
         headers: getHeaders(),
         body: JSON.stringify(data)
       });
-      return await res.json();
+      return await handleRes(res);
     } catch (err) {
       return { success: false, message: 'Lỗi kết nối máy chủ' };
     }
@@ -122,7 +134,7 @@ export const api = {
         method: 'DELETE',
         headers: getHeaders()
       });
-      return await res.json();
+      return await handleRes(res);
     } catch (err) {
       return { success: false, message: 'Lỗi kết nối máy chủ' };
     }
@@ -131,7 +143,7 @@ export const api = {
   getCourses: async () => {
     try {
       const res = await fetch(`${API_BASE}/academic-mgmt/courses`, { headers: getHeaders() });
-      return await res.json();
+      return await handleRes(res);
     } catch (err) {
       return { success: false, data: [] };
     }
@@ -144,7 +156,7 @@ export const api = {
         headers: getHeaders(),
         body: JSON.stringify(data)
       });
-      return await res.json();
+      return await handleRes(res);
     } catch (err) {
       return { success: false, message: 'Lỗi kết nối máy chủ' };
     }
@@ -156,7 +168,7 @@ export const api = {
         method: 'DELETE',
         headers: getHeaders()
       });
-      return await res.json();
+      return await handleRes(res);
     } catch (err) {
       return { success: false, message: 'Lỗi kết nối máy chủ' };
     }
@@ -165,7 +177,7 @@ export const api = {
   getCurriculums: async () => {
     try {
       const res = await fetch(`${API_BASE}/academic-mgmt/curriculums`, { headers: getHeaders() });
-      return await res.json();
+      return await handleRes(res);
     } catch (err) {
       return { success: false, data: [] };
     }
@@ -178,7 +190,7 @@ export const api = {
         headers: getHeaders(),
         body: JSON.stringify(data)
       });
-      return await res.json();
+      return await handleRes(res);
     } catch (err) {
       return { success: false, message: 'Lỗi kết nối máy chủ' };
     }
@@ -191,7 +203,7 @@ export const api = {
         headers: getHeaders(),
         body: JSON.stringify({ isVisible })
       });
-      return await res.json();
+      return await handleRes(res);
     } catch (err) {
       return { success: false, message: 'Lỗi kết nối máy chủ' };
     }
@@ -204,7 +216,7 @@ export const api = {
         headers: getHeaders(),
         body: JSON.stringify({ courseId })
       });
-      return await res.json();
+      return await handleRes(res);
     } catch (err) {
       return { success: false, message: 'Lỗi kết nối máy chủ' };
     }
@@ -216,7 +228,7 @@ export const api = {
         method: 'DELETE',
         headers: getHeaders()
       });
-      return await res.json();
+      return await handleRes(res);
     } catch (err) {
       return { success: false, message: 'Lỗi kết nối máy chủ' };
     }
@@ -226,7 +238,7 @@ export const api = {
     try {
       const q = semester ? `?semester=${encodeURIComponent(semester)}` : '';
       const res = await fetch(`${API_BASE}/academic-mgmt/sections${q}`, { headers: getHeaders() });
-      return await res.json();
+      return await handleRes(res);
     } catch (err) {
       return { success: false, data: [] };
     }
@@ -239,7 +251,7 @@ export const api = {
         headers: getHeaders(),
         body: JSON.stringify(data)
       });
-      return await res.json();
+      return await handleRes(res);
     } catch (err) {
       return { success: false, message: 'Lỗi kết nối máy chủ' };
     }
@@ -252,7 +264,7 @@ export const api = {
         headers: getHeaders(),
         body: JSON.stringify(data)
       });
-      return await res.json();
+      return await handleRes(res);
     } catch (err) {
       return { success: false, message: 'Lỗi kết nối máy chủ' };
     }
@@ -264,7 +276,7 @@ export const api = {
         method: 'DELETE',
         headers: getHeaders()
       });
-      return await res.json();
+      return await handleRes(res);
     } catch (err) {
       return { success: false, message: 'Lỗi kết nối máy chủ' };
     }

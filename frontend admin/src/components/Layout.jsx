@@ -1,19 +1,47 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 
-const navItems = [
-  { path: '/', label: 'Tổng Quan', icon: 'fa-chart-pie', group: 'Quản Trị' },
-  { path: '/students', label: 'Quản Lý Sinh Viên', icon: 'fa-user-graduate', group: 'Quản Trị' },
-  { path: '/teachers', label: 'Quản Lý Giảng Viên', icon: 'fa-chalkboard-user', group: 'Quản Trị' },
-  { path: '/academic-catalog', label: 'Chương Trình & Môn Học', icon: 'fa-book-bookmark', group: 'Học Thuật' },
-  { path: '/course-classes', label: 'Học Phần & Phân Công', icon: 'fa-calendar-check', group: 'Học Thuật' },
+const menuGroups = [
+  {
+    id: 'general',
+    title: 'QUẢN LÝ CHUNG',
+    icon: 'fa-cubes',
+    items: [
+      { path: '/', label: 'Tổng Quan', icon: 'fa-chart-pie' },
+      { path: '/students', label: 'Quản Lý Sinh Viên', icon: 'fa-user-graduate' },
+      { path: '/teachers', label: 'Quản Lý Giảng Viên', icon: 'fa-chalkboard-user' },
+    ]
+  },
+  {
+    id: 'academic',
+    title: 'QUẢN LÝ HỌC THUẬT',
+    icon: 'fa-graduation-cap',
+    items: [
+      { path: '/academic-catalog', label: 'Chương Trình & Môn Học', icon: 'fa-book-bookmark' },
+      { path: '/course-classes', label: 'Học Phần & Phân Công', icon: 'fa-calendar-check' },
+    ]
+  }
 ];
 
 const Layout = ({ adminUser, onLogout }) => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const activeItem = navItems.find(item =>
+  // Trạng thái mở/đóng từng phân mục (mặc định mở tất cả)
+  const [openGroups, setOpenGroups] = useState({
+    general: true,
+    academic: true,
+  });
+
+  const toggleGroup = (groupId) => {
+    setOpenGroups(prev => ({
+      ...prev,
+      [groupId]: !prev[groupId]
+    }));
+  };
+
+  const allItems = menuGroups.flatMap(g => g.items);
+  const activeItem = allItems.find(item =>
     item.path === '/' ? location.pathname === '/' : location.pathname.startsWith(item.path)
   );
 
@@ -37,29 +65,43 @@ const Layout = ({ adminUser, onLogout }) => {
         </div>
 
         <nav className="nav-group">
-          <div className="nav-label">Quản Lý Chung</div>
-          {navItems.filter(i => i.group === 'Quản Trị').map((item) => (
-            <button
-              key={item.path}
-              className={`nav-item ${location.pathname === item.path || (item.path !== '/' && location.pathname.startsWith(item.path)) ? 'active' : ''}`}
-              onClick={() => navigate(item.path)}
-            >
-              <i className={`fa-solid ${item.icon}`}></i>
-              <span>{item.label}</span>
-            </button>
-          ))}
+          {menuGroups.map(group => {
+            const isOpen = !!openGroups[group.id];
 
-          <div className="nav-label" style={{ marginTop: '16px' }}>Quản Lý Học Thuật</div>
-          {navItems.filter(i => i.group === 'Học Thuật').map((item) => (
-            <button
-              key={item.path}
-              className={`nav-item ${location.pathname === item.path || (item.path !== '/' && location.pathname.startsWith(item.path)) ? 'active' : ''}`}
-              onClick={() => navigate(item.path)}
-            >
-              <i className={`fa-solid ${item.icon}`}></i>
-              <span>{item.label}</span>
-            </button>
-          ))}
+            return (
+              <div key={group.id} className="nav-category-block">
+                <div
+                  className="nav-label-header"
+                  onClick={() => toggleGroup(group.id)}
+                  title="Bấm để đóng / mở phân mục"
+                >
+                  <div className="nav-label-title">
+                    <i className={`fa-solid ${group.icon} group-icon`}></i>
+                    <span>{group.title}</span>
+                  </div>
+                  <i className={`fa-solid fa-chevron-down toggle-chevron ${isOpen ? '' : 'collapsed'}`}></i>
+                </div>
+
+                {isOpen && (
+                  <div className="nav-category-items">
+                    {group.items.map((item) => {
+                      const isActive = location.pathname === item.path || (item.path !== '/' && location.pathname.startsWith(item.path));
+                      return (
+                        <button
+                          key={item.path}
+                          className={`nav-item ${isActive ? 'active' : ''}`}
+                          onClick={() => navigate(item.path)}
+                        >
+                          <i className={`fa-solid ${item.icon}`}></i>
+                          <span>{item.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </nav>
 
         <div className="sidebar-footer">
@@ -70,7 +112,7 @@ const Layout = ({ adminUser, onLogout }) => {
               className="user-avatar"
             />
             <div className="user-info">
-              <div className="user-name">Admin</div>
+              <div className="user-name">{adminUser?.name || 'Admin'}</div>
               <div className="user-role-badge">QUẢN TRỊ VIÊN</div>
             </div>
           </div>

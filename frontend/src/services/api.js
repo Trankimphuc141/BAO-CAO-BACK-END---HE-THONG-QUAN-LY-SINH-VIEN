@@ -34,6 +34,9 @@ class ApiService {
         headers
       });
       const data = await response.json();
+      if (response.status === 401 || response.status === 403 || data.message === 'Token không hợp lệ hoặc đã hết hạn') {
+        this.clearToken();
+      }
       return data;
     } catch (error) {
       console.error(`API Error on ${endpoint}:`, error);
@@ -45,7 +48,7 @@ class ApiService {
   async login(code, password) {
     const res = await this.request('/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ code, password })
+      body: JSON.stringify({ code, password, role: 'student' })
     });
     if (res.success && res.token) {
       this.setToken(res.token, res.user);

@@ -182,7 +182,7 @@ export default function TimetablePage() {
 
                       <div className="schedule-meta-item">
                         <i className="fa-solid fa-layer-group"></i> Mã HP:{' '}
-                        <strong style={{ color: '#93c5fd' }}>{s.sectionCode || s.course?.code}</strong>
+                        <strong style={{ color: '#2563eb' }}>{s.sectionCode || s.course?.code}</strong>
                       </div>
                       <div className="schedule-meta-item">
                         <i className="fa-solid fa-location-dot"></i> Phòng: <strong>{s.room}</strong>

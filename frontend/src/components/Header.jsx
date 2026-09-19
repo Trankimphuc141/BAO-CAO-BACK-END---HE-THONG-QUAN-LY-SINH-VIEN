@@ -6,7 +6,7 @@ export default function Header({ activeTab, currentUser, onOpenAuth, onLogout })
     notifications: { title: 'Thông Báo Từ Giảng Viên & Học Vụ', sub: 'Xem các tin tức công bố điểm, cảnh báo chuyên cần và tin nhắn hướng dẫn từ giảng viên', icon: 'fa-bell' },
     portal: { title: 'Hồ Sơ & Bảng Điểm', sub: 'Hồ sơ sinh viên, bảng điểm chi tiết các học kỳ, điểm GPA/CPA', icon: 'fa-id-card' },
     timetable: { title: 'Lịch Học Cá Nhân Theo Thời Gian Thực', sub: 'Thời khóa biểu học tập với ngày tháng chạy theo thời gian thực, phân chia Buổi & Ca học', icon: 'fa-calendar-days' },
-    attendance: { title: 'Theo Dõi Chuyên Cần', sub: 'Giám sát số buổi học và cảnh báo nguy cơ cấm thi vắng > 20%', icon: 'fa-clipboard-user' },
+    attendance: { title: 'Theo Dõi Chuyên Cần', sub: 'Giám sát 15 buổi học: vắng 1 buổi (có phép / không phép) mất 6,67% chuyên cần, cấm thi khi vắng > 30%', icon: 'fa-clipboard-user' },
     exams: { title: 'Lịch Thi Cá Nhân', sub: 'Tra cứu ngày thi, ca thi, phòng thi và hình thức thi', icon: 'fa-pen-ruler' },
     survey: { title: 'Đánh Giá Giảng Dạy', sub: 'Khảo sát chất lượng môn học và giảng viên ẩn danh', icon: 'fa-star-half-stroke' },
     thesis: { title: 'Nộp Đồ Án / Luận Văn Tốt Nghiệp', sub: 'Nộp file báo cáo đề tài tốt nghiệp và theo dõi các mốc tiến độ M1-M4', icon: 'fa-file-arrow-up' }

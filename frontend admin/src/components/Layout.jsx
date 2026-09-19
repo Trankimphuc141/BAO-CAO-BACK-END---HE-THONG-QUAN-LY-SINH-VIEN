@@ -19,9 +19,12 @@ const menuGroups = [
     items: [
       { path: '/academic-catalog', label: 'Chương Trình & Môn Học', icon: 'fa-book-bookmark' },
       { path: '/course-classes', label: 'Học Phần & Phân Công', icon: 'fa-calendar-check' },
+      { path: '/attendance-history', label: 'Lịch Sử Điểm Danh', icon: 'fa-clock-rotate-left' },
+      { path: '/grades', label: 'Quản Lý & Duyệt Điểm', icon: 'fa-award' },
     ]
   }
 ];
+
 
 const Layout = ({ adminUser, onLogout }) => {
   const navigate = useNavigate();

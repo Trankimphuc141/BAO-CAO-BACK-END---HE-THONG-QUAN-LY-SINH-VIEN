@@ -4,6 +4,7 @@ const Course = require('../models/Course');
 const ClassSection = require('../models/ClassSection');
 const Enrollment = require('../models/Enrollment');
 const User = require('../models/User');
+const Grade = require('../models/Grade');
 
 // ═══════════════════════════════════════════════
 // 1. QUẢN LÝ NGÀNH HỌC (MAJORS)
@@ -476,8 +477,14 @@ exports.respondTeacherSchedule = async (req, res) => {
         await section.save();
 
         const message = status === 'accepted'
-            ? `Bạn đã xác nhận lịch giảng dạy lớp "${section.sectionCode}". Lớp học đã được đẩy lên Cổng Sinh Viên để mở đăng ký!`
+            ? `Bạn đã đồng ý lịch giảng dạy lớp "${section.sectionCode}". Lớp học đã được lên lịch thành công cho Sinh Viên!`
             : `Bạn đã từ chối lịch dạy lớp "${section.sectionCode}" và gửi đề xuất thời gian về cho Phòng Đào Tạo.`;
+
+        const io = req.app.get('io');
+        if (io) {
+            io.emit('section-approval-updated', { sectionId: section._id, status, teacherId });
+            io.emit('timetable-updated');
+        }
 
         res.json({
             success: true,
@@ -533,6 +540,14 @@ exports.registerSection = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Lớp học phần này hiện đã đóng đăng ký' });
         }
 
+        // Bắt buộc giảng viên phải đồng ý nhận lớp mới cho phép sinh viên đăng ký / lên lịch
+        if (section.teacherApprovalStatus !== 'accepted') {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'Lớp học phần này đang chờ giảng viên xác nhận phân công, chưa thể đăng ký' 
+            });
+        }
+
         // Kiểm tra sĩ số tối đa
         if (section.students.length >= section.maxStudents) {
             return res.status(400).json({ success: false, message: 'Lớp học phần đã đủ số lượng sinh viên tối đa' });
@@ -559,6 +574,21 @@ exports.registerSection = async (req, res) => {
             },
             { upsert: true, new: true }
         );
+
+        // Tự động tạo bản ghi điểm khởi tạo cho sinh viên để đồng bộ dữ liệu
+        let existingGrade = await Grade.findOne({ student: studentId, classSection: section._id });
+        if (!existingGrade) {
+            await Grade.create({
+                student: studentId,
+                classSection: section._id,
+                course: section.course._id || section.course,
+                semester: section.semester || 'HK1-2026-2027',
+                attendanceScore: 10,
+                midtermScore: 0,
+                finalScore: 0,
+                sessionScores: Array(15).fill(10)
+            });
+        }
 
         res.json({
             success: true,
@@ -593,6 +623,9 @@ exports.dropSection = async (req, res) => {
             { student: studentId, classSection: section._id },
             { status: 'dropped', droppedAt: new Date() }
         );
+
+        // Xóa bản ghi điểm chưa khóa/công bố khi sinh viên hủy môn
+        await Grade.deleteOne({ student: studentId, classSection: section._id, isLocked: false, isPublished: false });
 
         res.json({
             success: true,

@@ -45,7 +45,7 @@ function Layout(props) {
 
     const menuItems = [
         { text: 'Dashboard', icon: <DashboardIcon />, path: '/', exact: true },
-        { text: 'Lịch Dạy & Lớp Học', icon: <CalendarIcon />, path: '/schedule' },
+        { text: 'Thời Khóa Biểu Dạy', icon: <CalendarIcon />, path: '/schedule' },
         { text: 'Sinh Viên', icon: <PeopleIcon />, path: '/students' },
         { text: 'Đồ Án / Luận Văn', icon: <ThesisIcon />, path: '/thesis' },
         { text: 'Nhập Điểm', icon: <GradeIcon />, path: '/grades' },

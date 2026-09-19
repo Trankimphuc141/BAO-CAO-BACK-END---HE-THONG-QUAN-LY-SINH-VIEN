@@ -7,6 +7,8 @@ import Students from './pages/Students';
 import Teachers from './pages/Teachers';
 import AcademicCatalog from './pages/AcademicCatalog';
 import CourseClasses from './pages/CourseClasses';
+import AttendanceHistory from './pages/AttendanceHistory';
+import GradeManagement from './pages/GradeManagement';
 
 const PrivateRoute = ({ children }) => {
   const token = localStorage.getItem('adminToken');
@@ -46,6 +48,8 @@ function App() {
           <Route path="teachers" element={<Teachers />} />
           <Route path="academic-catalog" element={<AcademicCatalog />} />
           <Route path="course-classes" element={<CourseClasses />} />
+          <Route path="attendance-history" element={<AttendanceHistory />} />
+          <Route path="grades" element={<GradeManagement />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />

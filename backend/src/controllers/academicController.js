@@ -11,9 +11,10 @@ exports.getTimetable = async (req, res) => {
         const query = {};
         if (semester) query.semester = semester;
 
-        // Nếu là sinh viên, chỉ lấy lịch học các môn sinh viên đăng ký
+        // Nếu là sinh viên: CHỈ LÊN LỊCH HỌC KHI GIẢNG VIÊN ĐÃ ĐỒNG Ý (accepted)
         if (req.user && req.user.role === 'student') {
             query.students = req.user.id;
+            query.teacherApprovalStatus = 'accepted';
         } else if (req.user && req.user.role === 'teacher') {
             // Nếu là giảng viên, lấy các lớp giảng dạy
             query.teacher = req.user.id;
@@ -36,6 +37,9 @@ exports.getClassSections = async (req, res) => {
         const query = {};
         if (req.user && req.user.role === 'teacher') {
             query.teacher = req.user.id;
+        } else if (req.user && req.user.role === 'student') {
+            query.students = req.user.id;
+            query.teacherApprovalStatus = 'accepted';
         }
 
         const sections = await ClassSection.find(query)
@@ -48,16 +52,154 @@ exports.getClassSections = async (req, res) => {
     }
 };
 
+// ─── ĐỒNG BỘ HỆ THỐNG CHUYÊN CẦN 15 BUỔI SANG BẢNG ĐIỂM (GRADES) ───
+// Quy tắc đào tạo:
+// 1. Tối đa 15 buổi học hằng ngày
+// 2. Vắng 1 buổi (có phép hay không phép như nhau) bị trừ 6.67% (tương đương -0.67 điểm CC)
+// 3. Đi muộn trừ 3.33% (tương đương 5 điểm cho buổi đó)
+// 4. Có mặt đủ = 10 điểm (100%)
+// 5. Khi sinh viên vắng >= 5 buổi (tức vắng > 30% tổng số buổi) -> CẤM THI CUỐI KỲ (xếp loại F)
+const syncAttendanceToGradesInternal = async (classSectionId, io) => {
+    try {
+        const section = await ClassSection.findById(classSectionId).populate('course').populate('students');
+        if (!section) return { success: false, message: 'Không tìm thấy lớp học phần' };
+
+        const attendances = await Attendance.find({ classSection: classSectionId }).sort({ sessionNumber: 1 });
+        const updatedGrades = [];
+
+        // Thu thập toàn bộ sinh viên từ danh sách lớp, các phiếu điểm danh và bảng điểm cũ
+        const studentIdMap = new Map();
+        (section.students || []).forEach(s => {
+            const id = (s._id || s).toString();
+            studentIdMap.set(id, s);
+        });
+        attendances.forEach(att => {
+            (att.records || []).forEach(r => {
+                if (r.student) {
+                    const id = (r.student._id || r.student).toString();
+                    if (!studentIdMap.has(id)) {
+                        studentIdMap.set(id, r.student);
+                    }
+                }
+            });
+        });
+        const existingGrades = await Grade.find({ classSection: classSectionId });
+        existingGrades.forEach(eg => {
+            if (eg.student) {
+                const id = (eg.student._id || eg.student).toString();
+                if (!studentIdMap.has(id)) {
+                    studentIdMap.set(id, eg.student);
+                }
+            }
+        });
+
+        // Cập nhật lại danh sách students trong section nếu có sinh viên mới từ điểm danh
+        if (studentIdMap.size > (section.students || []).length) {
+            section.students = Array.from(studentIdMap.keys());
+            await section.save();
+        }
+
+        for (const [studentIdStr] of studentIdMap) {
+            const sessionScores = Array(15).fill(10);
+            let absentCount = 0;
+            let lateCount = 0;
+            let attendedCount = 0;
+
+            for (let s = 1; s <= 15; s++) {
+                const att = attendances.find(a => Number(a.sessionNumber) === s);
+                if (att) {
+                    const rec = (att.records || []).find(r => 
+                        (r.student?._id || r.student)?.toString() === studentIdStr
+                    );
+                    if (rec) {
+                        if (rec.status === 'present') {
+                            sessionScores[s - 1] = 10;
+                            attendedCount++;
+                        } else if (rec.status === 'late') {
+                            sessionScores[s - 1] = 5;
+                            lateCount++;
+                        } else if (rec.status === 'excused_absent' || rec.status === 'unexcused_absent') {
+                            sessionScores[s - 1] = 0;
+                            absentCount++;
+                        }
+                    } else {
+                        // Buổi học đã điểm danh nhưng sinh viên không có tên -> tính vắng
+                        sessionScores[s - 1] = 0;
+                        absentCount++;
+                    }
+                } else {
+                    // Buổi học chưa diễn ra -> tính mặc định 10 điểm
+                    sessionScores[s - 1] = 10;
+                }
+            }
+
+            // Quy đổi số buổi vắng: Vắng = 1, Muộn = 0.5
+            const totalAbsenceEquivalent = absentCount + (lateCount * 0.5);
+            const absencePercentage = Number((totalAbsenceEquivalent * 6.67).toFixed(1));
+            // Cấm thi nếu vắng từ 5 buổi trở lên (tức > 30% trong 15 buổi)
+            const isBannedFromExam = absentCount >= 5 || absencePercentage > 30;
+
+            // Tính điểm chuyên cần trung bình của 15 buổi (hệ 10, làm tròn 1 chữ số thập phân)
+            const calculatedAttendance = Math.max(0, Math.min(10, Number((sessionScores.reduce((sum, val) => sum + val, 0) / 15).toFixed(1))));
+
+            let grade = await Grade.findOne({ student: studentIdStr, classSection: classSectionId });
+            if (grade) {
+                grade.sessionScores = sessionScores;
+                grade.attendanceScore = calculatedAttendance;
+                grade.isBannedFromExam = isBannedFromExam;
+                // Pre-save hook tự động tính lại totalScore10, totalScore4, letterGrade, isPassed
+                await grade.save();
+            } else {
+                grade = await Grade.create({
+                    student: studentIdStr,
+                    classSection: classSectionId,
+                    course: section.course?._id || section.course,
+                    semester: section.semester || 'HK1-2026-2027',
+                    sessionScores,
+                    attendanceScore: calculatedAttendance,
+                    midtermScore: 0,
+                    finalScore: 0,
+                    isBannedFromExam
+                });
+            }
+            updatedGrades.push(grade);
+        }
+
+        if (io) {
+            io.emit('attendance-updated', { classSectionId });
+            io.emit('grade-updated', { classSectionId });
+            io.emit('attendance-synced', { classSectionId, count: updatedGrades.length });
+        }
+
+        return { success: true, count: updatedGrades.length, grades: updatedGrades };
+    } catch (err) {
+        console.error('Lỗi khi đồng bộ điểm chuyên cần:', err);
+        return { success: false, error: err.message };
+    }
+};
+
+exports.syncAttendanceToGradesInternal = syncAttendanceToGradesInternal;
+
 // 3. Giảng viên điểm danh buổi học
 exports.recordAttendance = async (req, res) => {
     try {
         const { classSectionId, sessionNumber, date, records } = req.body;
+        const sNum = Number(sessionNumber);
 
-        if (!classSectionId || !sessionNumber || !date || !records) {
+        if (!classSectionId || !sNum || !date || !records) {
             return res.status(400).json({ success: false, message: 'Thiếu thông tin điểm danh bắt buộc' });
         }
 
-        let attendance = await Attendance.findOne({ classSection: classSectionId, sessionNumber });
+        let attendance = await Attendance.findOne({ classSection: classSectionId, sessionNumber: sNum });
+
+        // Nếu buổi đã chốt và người dùng không phải admin → từ chối
+        if (attendance && attendance.isFinalized && req.user?.role !== 'admin') {
+            return res.status(403).json({ 
+                success: false, 
+                message: 'Buổi điểm danh này đã được chốt. Không thể sửa đổi.'
+            });
+        }
+
         if (attendance) {
             attendance.date = date;
             attendance.records = records;
@@ -66,17 +208,198 @@ exports.recordAttendance = async (req, res) => {
         } else {
             attendance = await Attendance.create({
                 classSection: classSectionId,
-                sessionNumber,
+                sessionNumber: sNum,
                 date,
                 records,
                 takenBy: req.user ? req.user.id : null
             });
         }
 
+        const io = req.app.get('io');
+        if (io) {
+            io.emit('attendance-updated', { classSectionId, sessionNumber: sNum });
+        }
+
+        // Tự động đồng bộ toàn bộ chuyên cần 15 buổi sang bảng điểm Grade
+        await syncAttendanceToGradesInternal(classSectionId, io);
+
         return res.status(200).json({ 
             success: true, 
-            message: `Đã lưu thành công dữ liệu điểm danh buổi ${sessionNumber}`,
+            message: `Đã lưu thành công dữ liệu điểm danh buổi ${sNum} và đồng bộ bảng điểm`,
             data: attendance 
+        });
+    } catch (err) {
+        return res.status(500).json({ success: false, error: err.message });
+    }
+};
+
+// 3b. Chốt điểm danh một buổi (Giảng viên hoặc Admin)
+exports.finalizeAttendance = async (req, res) => {
+    try {
+        const { classSectionId, sessionNumber } = req.body;
+        const sNum = Number(sessionNumber);
+        let attendance = await Attendance.findOne({ classSection: classSectionId, sessionNumber: sNum });
+        if (!attendance) {
+            // Tự động khởi tạo buổi điểm danh nếu chưa từng lưu
+            const section = await ClassSection.findById(classSectionId).populate('students', '_id');
+            if (!section) {
+                return res.status(404).json({ success: false, message: 'Không tìm thấy lớp học phần' });
+            }
+            const defaultRecords = (section.students || []).map(s => ({
+                student: s._id,
+                status: 'present',
+                note: ''
+            }));
+            attendance = new Attendance({
+                classSection: classSectionId,
+                sessionNumber: sNum,
+                date: new Date().toISOString().split('T')[0],
+                records: defaultRecords,
+                takenBy: req.user?.id || null
+            });
+        }
+        if (attendance.isFinalized) {
+            return res.status(400).json({ success: false, message: 'Buổi điểm danh này đã được chốt trước đó' });
+        }
+        attendance.isFinalized = true;
+        attendance.finalizedAt = new Date();
+        attendance.finalizedBy = req.user?.id || null;
+        await attendance.save();
+
+        const io = req.app.get('io');
+        if (io) {
+            io.emit('attendance-updated', { classSectionId, sessionNumber: sNum, isFinalized: true });
+        }
+
+        // Tự động đồng bộ toàn bộ chuyên cần 15 buổi sang bảng điểm Grade
+        await syncAttendanceToGradesInternal(classSectionId, io);
+
+        return res.status(200).json({
+            success: true,
+            message: `Đã chốt điểm danh buổi ${sNum} thành công và đồng bộ bảng điểm. Không thể sửa đổi sau khi chốt.`,
+            data: attendance
+        });
+    } catch (err) {
+        return res.status(500).json({ success: false, error: err.message });
+    }
+};
+
+// 3c. Bỏ chốt điểm danh (Admin only)
+exports.unfinalizeAttendance = async (req, res) => {
+    try {
+        const { classSectionId, sessionNumber } = req.body;
+        const sNum = Number(sessionNumber);
+        const attendance = await Attendance.findOne({ classSection: classSectionId, sessionNumber: sNum });
+        if (!attendance) {
+            return res.status(404).json({ success: false, message: 'Không tìm thấy buổi điểm danh' });
+        }
+        attendance.isFinalized = false;
+        attendance.finalizedAt = null;
+        attendance.finalizedBy = null;
+        await attendance.save();
+
+        const io = req.app.get('io');
+        if (io) {
+            io.emit('attendance-updated', { classSectionId, sessionNumber: sNum, isFinalized: false });
+        }
+
+        // Tự động đồng bộ toàn bộ chuyên cần 15 buổi sang bảng điểm Grade
+        await syncAttendanceToGradesInternal(classSectionId, io);
+
+        return res.status(200).json({
+            success: true,
+            message: `Đã bỏ chốt điểm danh buổi ${sNum} và đồng bộ bảng điểm. Có thể chỉnh sửa lại.`,
+            data: attendance
+        });
+    } catch (err) {
+        return res.status(500).json({ success: false, error: err.message });
+    }
+};
+
+// 3d. Admin sửa điểm danh kể cả khi đã chốt
+exports.adminEditAttendance = async (req, res) => {
+    try {
+        const { classSectionId, sessionNumber, date, records } = req.body;
+        const sNum = Number(sessionNumber);
+        let attendance = await Attendance.findOne({ classSection: classSectionId, sessionNumber: sNum });
+        if (!attendance) {
+            return res.status(404).json({ success: false, message: 'Không tìm thấy buổi điểm danh' });
+        }
+        if (date) attendance.date = date;
+        if (records) attendance.records = records;
+        attendance.takenBy = req.user?.id || null;
+        await attendance.save();
+
+        const io = req.app.get('io');
+        if (io) {
+            io.emit('attendance-updated', { classSectionId, sessionNumber: sNum });
+        }
+
+        // Tự động đồng bộ toàn bộ chuyên cần 15 buổi sang bảng điểm Grade
+        await syncAttendanceToGradesInternal(classSectionId, io);
+
+        return res.status(200).json({
+            success: true,
+            message: `Admin đã cập nhật điểm danh buổi ${sNum} và đồng bộ bảng điểm thành công`,
+            data: attendance
+        });
+    } catch (err) {
+        return res.status(500).json({ success: false, error: err.message });
+    }
+};
+
+// 3e. Lấy lịch sử điểm danh các buổi đã chốt của một lớp (dùng cho mọi role)
+exports.getAttendanceHistory = async (req, res) => {
+    try {
+        const { classSectionId } = req.params;
+        const role = req.user?.role;
+        const userId = req.user?.id;
+
+        const section = await ClassSection.findById(classSectionId)
+            .populate('course', 'code name')
+            .populate('teacher', 'name code')
+            .populate('students', 'code name classCode');
+
+        if (!section) {
+            return res.status(404).json({ success: false, message: 'Không tìm thấy lớp học phần' });
+        }
+
+        // Sinh viên: chỉ được xem nếu thuộc lớp
+        if (role === 'student') {
+            const isMember = section.students.some(s => s._id.toString() === userId.toString());
+            if (!isMember) {
+                return res.status(403).json({ success: false, message: 'Bạn không thuộc lớp học phần này' });
+            }
+        }
+        // Giảng viên: chỉ xem lớp mình dạy
+        if (role === 'teacher') {
+            if (section.teacher._id.toString() !== userId.toString()) {
+                return res.status(403).json({ success: false, message: 'Bạn không phụ trách lớp học phần này' });
+            }
+        }
+
+        // Admin: xem tất cả (không lọc)
+        // Teacher + Student: xem tất cả buổi (cả chốt và chưa chốt để xem đầy đủ)
+        const attendances = await Attendance.find({ classSection: classSectionId })
+            .populate('takenBy', 'name code')
+            .populate('finalizedBy', 'name code')
+            .populate('records.student', 'name code avatar classCode')
+            .sort({ sessionNumber: 1 });
+
+        return res.status(200).json({
+            success: true,
+            section: {
+                _id: section._id,
+                sectionCode: section.sectionCode,
+                courseName: section.course?.name,
+                courseCode: section.course?.code,
+                teacherName: section.teacher?.name,
+                totalLessons: section.totalLessons,
+                students: section.students
+            },
+            sessions: attendances,
+            totalSessions: attendances.length,
+            finalizedCount: attendances.filter(a => a.isFinalized).length
         });
     } catch (err) {
         return res.status(500).json({ success: false, error: err.message });
@@ -105,7 +428,10 @@ exports.getAttendanceReport = async (req, res) => {
             let unexcusedCount = 0;
 
             attendances.forEach(att => {
-                const rec = att.records.find(r => r.student.toString() === student._id.toString());
+                const rec = att.records.find(r => {
+                    const rId = (r.student?._id || r.student)?.toString();
+                    return rId === student._id.toString();
+                });
                 if (rec) {
                     if (rec.status === 'present') presentCount++;
                     else if (rec.status === 'late') lateCount++;
@@ -114,9 +440,12 @@ exports.getAttendanceReport = async (req, res) => {
                 }
             });
 
-            const totalAbsenceEquivalent = unexcusedCount + (excusedCount * 0.5) + (lateCount * 0.3);
-            const absencePercentage = Number(((totalAbsenceEquivalent / (section.totalLessons || 15)) * 100).toFixed(1));
-            const isBannedFromExam = absencePercentage > 20;
+            // Vắng có phép và không phép đều tính mất 6,67% chuyên cần như nhau (100% / 15 buổi ≈ 6.67%)
+            const totalAbsenceEquivalent = unexcusedCount + excusedCount + (lateCount * 0.3);
+            const absencePercentage = Number((totalAbsenceEquivalent * 6.67).toFixed(1));
+            const attendanceRate = Math.max(0, Number((100 - absencePercentage).toFixed(1)));
+            // Khi vượt qua 30% tổng số buổi sẽ không đủ điều kiện để thi (Cấm thi)
+            const isBannedFromExam = absencePercentage > 30;
 
             return {
                 student: {
@@ -130,7 +459,9 @@ exports.getAttendanceReport = async (req, res) => {
                 excusedCount,
                 unexcusedCount,
                 totalSessionsDone: attendances.length,
+                totalAbsenceEquivalent,
                 absencePercentage,
+                attendanceRate,
                 isBannedFromExam
             };
         });
@@ -289,10 +620,54 @@ exports.qrCheckIn = async (req, res) => {
             });
         }
 
+        // Tự động đồng bộ điểm chuyên cần sang bảng điểm Grade
+        await syncAttendanceToGradesInternal(attendance.classSection, io);
+
         return res.status(200).json({
             success: true,
             message: `Điểm danh thành công buổi học số ${attendance.sessionNumber}!`,
             data: attendance
+        });
+    } catch (err) {
+        return res.status(500).json({ success: false, error: err.message });
+    }
+};
+
+// 8. API Endpoint cho Giảng viên / Admin bấm nút "Đồng bộ điểm chuyên cần"
+exports.syncAttendanceToGrades = async (req, res) => {
+    try {
+        const { classSectionId } = req.body;
+        if (!classSectionId) {
+            return res.status(400).json({ success: false, message: 'Vui lòng cung cấp mã lớp học phần (classSectionId)' });
+        }
+        const io = req.app.get('io');
+        const result = await syncAttendanceToGradesInternal(classSectionId, io);
+        if (!result.success) {
+            return res.status(500).json(result);
+        }
+        return res.status(200).json({
+            success: true,
+            message: `Đã đồng bộ thành công chuyên cần của ${result.count} sinh viên sang bảng điểm!`,
+            data: result
+        });
+    } catch (err) {
+        return res.status(500).json({ success: false, error: err.message });
+    }
+};
+
+// 9. API Endpoint Đồng bộ toàn bộ các lớp trong hệ thống
+exports.syncAllAttendanceToGrades = async (req, res) => {
+    try {
+        const sections = await ClassSection.find({});
+        const io = req.app.get('io');
+        let totalCount = 0;
+        for (const sec of sections) {
+            const r = await syncAttendanceToGradesInternal(sec._id, io);
+            if (r.success) totalCount += r.count;
+        }
+        return res.status(200).json({
+            success: true,
+            message: `Đã đồng bộ toàn bộ hệ thống chuyên cần cho ${sections.length} lớp học phần (${totalCount} lượt sinh viên)!`
         });
     } catch (err) {
         return res.status(500).json({ success: false, error: err.message });

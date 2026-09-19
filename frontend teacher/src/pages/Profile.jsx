@@ -559,7 +559,7 @@ function Profile() {
                             <Divider sx={{ my: 3.5, borderColor: '#f1f5f9' }} />
 
                             {/* Action Buttons */}
-                            <Stack direction="row" alignItems="center" justifyContent="flex-end" gap={2}>
+                            <Stack direction="row" alignItems="center" justifyContent="flex-end" spacing={2}>
                                 <Button
                                     type="button"
                                     variant="outlined"
@@ -568,6 +568,7 @@ function Profile() {
                                     sx={{
                                         borderRadius: '12px',
                                         px: 3, py: 1.2,
+                                        mr: 2,
                                         borderColor: '#cbd5e1',
                                         color: '#64748b',
                                         textTransform: 'none',

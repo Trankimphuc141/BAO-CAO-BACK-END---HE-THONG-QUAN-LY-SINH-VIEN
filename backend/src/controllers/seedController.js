@@ -3,7 +3,19 @@ const User = require('../models/User');
 const Course = require('../models/Course');
 const ClassSection = require('../models/ClassSection');
 const Grade = require('../models/Grade');
+const GradeAppeal = require('../models/GradeAppeal');
 const Attendance = require('../models/Attendance');
+const ExamSchedule = require('../models/ExamSchedule');
+const Survey = require('../models/Survey');
+const Submission = require('../models/Submission');
+const Internship = require('../models/Internship');
+const Thesis = require('../models/Thesis');
+const Announcement = require('../models/Announcement');
+const Note = require('../models/Note');
+const Notification = require('../models/Notification');
+const Major = require('../models/Major');
+const Curriculum = require('../models/Curriculum');
+const Enrollment = require('../models/Enrollment');
 
 /**
  * POST /api/seed/run
@@ -208,12 +220,41 @@ exports.runSeed = async (req, res) => {
  */
 exports.clearSeedData = async (req, res) => {
     try {
-        await Grade.deleteMany({});
-        await Attendance.deleteMany({});
-        await ClassSection.deleteMany({});
-        await Course.deleteMany({});
-        await User.deleteMany({ role: { $in: ['student', 'teacher'] } });
-        res.json({ success: true, message: '🗑️ Đã xóa toàn bộ dữ liệu mẫu' });
+        await Promise.all([
+            User.deleteMany({ code: { $ne: 'admin' } }),
+            Course.deleteMany({}),
+            ClassSection.deleteMany({}),
+            Attendance.deleteMany({}),
+            Grade.deleteMany({}),
+            GradeAppeal.deleteMany({}),
+            ExamSchedule.deleteMany({}),
+            Survey.deleteMany({}),
+            Submission.deleteMany({}),
+            Internship.deleteMany({}),
+            Thesis.deleteMany({}),
+            Announcement.deleteMany({}),
+            Note.deleteMany({}),
+            Notification.deleteMany({}),
+            Major.deleteMany({}),
+            Curriculum.deleteMany({}),
+            Enrollment.deleteMany({})
+        ]);
+
+        let adminUser = await User.findOne({ role: 'admin' });
+        if (!adminUser) {
+            adminUser = await User.create({
+                code: 'admin',
+                name: 'Quản Trị Viên Hệ Thống',
+                email: 'admin@university.edu.vn',
+                password: '123',
+                plainPassword: '123',
+                role: 'admin',
+                department: 'Phòng Đào Tạo',
+                status: 'Đang công tác'
+            });
+        }
+
+        res.json({ success: true, message: '🗑️ Đã xóa toàn bộ dữ liệu giả/ảo thành công!' });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }

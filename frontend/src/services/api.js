@@ -85,6 +85,10 @@ class ApiService {
     return await this.request(`/academic/attendance-report/${classSectionId}`);
   }
 
+  async getAttendanceHistory(classSectionId) {
+    return await this.request(`/academic/attendance-history/${classSectionId}`);
+  }
+
   async qrCheckIn(qrToken) {
     return await this.request('/academic/attendance/check-in', {
       method: 'POST',
@@ -178,6 +182,25 @@ class ApiService {
   async getMyRegisteredSections(semester = '') {
     const q = semester ? `?semester=${encodeURIComponent(semester)}` : '';
     return await this.request(`/academic-mgmt/registration/my-courses${q}`);
+  }
+
+  // 8. Grade Appeals (Phúc khảo điểm)
+  async submitGradeAppeal(gradeId, data) {
+    return await this.request(`/students/grades/${gradeId}/appeal`, {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+  }
+
+  async getStudentAppeals() {
+    return await this.request('/students/appeals');
+  }
+
+  async sendAppealMessage(appealId, content) {
+    return await this.request(`/students/appeals/${appealId}/message`, {
+      method: 'POST',
+      body: JSON.stringify({ content })
+    });
   }
 }
 

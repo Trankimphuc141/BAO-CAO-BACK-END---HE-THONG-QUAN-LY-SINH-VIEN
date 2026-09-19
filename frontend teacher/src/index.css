@@ -82,3 +82,304 @@ html {
     font-size: 14px;
   }
 }
+
+/* ==========================================================
+   TIMETABLE STYLES (ĐỒNG BỘ 100% VỚI CỔNG SINH VIÊN)
+   ========================================================== */
+.timetable-topbar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
+  padding: 12px 16px;
+  background: #ffffff;
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  border-radius: 12px;
+}
+.realtime-clock-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #0891b2;
+  background: #e0f2fe;
+  padding: 5px 13px;
+  border-radius: 8px;
+  border: 1px solid #bae6fd;
+}
+.week-navigator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.week-display-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f172a;
+  min-width: 170px;
+  text-align: center;
+}
+.shift-filter-group {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.shift-filter-btn {
+  padding: 5px 12px;
+  font-size: 11.5px;
+  font-weight: 500;
+  border-radius: 6px;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-family: inherit;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.shift-filter-btn:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+.shift-filter-btn.active {
+  background: #eff6ff;
+  border-color: rgba(37, 99, 235, 0.4);
+  color: #2563eb;
+  font-weight: 700;
+}
+.schedule-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 12px;
+}
+@media (max-width: 1200px) {
+  .schedule-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+@media (max-width: 640px) {
+  .schedule-grid {
+    grid-template-columns: 1fr;
+  }
+}
+.schedule-day-column {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 12px;
+  min-height: 480px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  position: relative;
+}
+.schedule-day-column.is-today {
+  border: 1.5px solid rgba(37, 99, 235, 0.6);
+  background: rgba(37, 99, 235, 0.02);
+  box-shadow: 0 0 20px rgba(37, 99, 235, 0.08);
+}
+.schedule-day-column.is-today:before {
+  content: "HÔM NAY";
+  position: absolute;
+  top: -9px;
+  right: 12px;
+  background: #2563eb;
+  color: #ffffff;
+  font-size: 8.5px;
+  font-weight: 800;
+  padding: 1.5px 7px;
+  border-radius: 4px;
+}
+.schedule-day-header {
+  text-align: center;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #e2e8f0;
+}
+.schedule-day-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f172a;
+}
+.schedule-day-date {
+  font-size: 11px;
+  color: #64748b;
+  margin-top: 1px;
+}
+.schedule-card {
+  padding: 11px;
+  border-radius: 8px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  transition: all 0.15s ease;
+}
+.schedule-card:hover {
+  background: #ffffff;
+  transform: scale(1.01);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+}
+.schedule-card.session-sang {
+  border-left: 3.5px solid #0891b2;
+  background: #f0f9ff;
+}
+.schedule-card.session-chieu {
+  border-left: 3.5px solid #d97706;
+  background: #fffbeb;
+}
+.schedule-card.session-toi {
+  border-left: 3.5px solid #7c3aed;
+  background: #faf5ff;
+}
+.schedule-course-title {
+  font-size: 12.5px;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1.3;
+}
+.schedule-meta-item {
+  font-size: 11px;
+  color: #475569;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.schedule-shift-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 5px;
+  display: inline-block;
+}
+.shift-sang {
+  background: #e0f2fe;
+  color: #0891b2;
+}
+.shift-chieu {
+  background: #fef3c7;
+  color: #d97706;
+}
+.shift-toi {
+  background: #ede9fe;
+  color: #7c3aed;
+}
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+.panel-header h3 {
+  font-size: 15px;
+  font-weight: 700;
+  color: #0f172a;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+.btn-sm {
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: inherit;
+}
+.btn-secondary {
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #e2e8f0;
+}
+.btn-secondary:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+.btn-primary {
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  color: #ffffff;
+}
+.btn-primary:hover {
+  background: linear-gradient(135deg, #1d4ed8, #1e40af);
+}
+.btn-success {
+  background: linear-gradient(135deg, #059669, #10b981);
+  color: #ffffff;
+  border: none;
+}
+.btn-success:hover {
+  background: linear-gradient(135deg, #047857, #059669);
+}
+.btn-danger {
+  background: linear-gradient(135deg, #dc2626, #ef4444);
+  color: #ffffff;
+  border: none;
+}
+.btn-danger:hover {
+  background: linear-gradient(135deg, #b91c1c, #dc2626);
+}
+
+/* Modal Overlay & Card */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  padding: 16px;
+  animation: fadeIn 0.2s ease-out;
+}
+.modal-card {
+  background: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  width: 100%;
+  max-width: 520px;
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+  animation: modalScaleUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.modal-header {
+  padding: 18px 22px;
+  border-bottom: 1px solid #f1f5f9;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #fafafa;
+}
+.modal-body {
+  padding: 22px;
+}
+.modal-footer {
+  padding: 16px 22px;
+  border-top: 1px solid #f1f5f9;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  background: #fafafa;
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes modalScaleUp {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+

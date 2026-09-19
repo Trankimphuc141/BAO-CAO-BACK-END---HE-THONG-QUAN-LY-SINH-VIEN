@@ -36,8 +36,8 @@ router.delete('/sections/:id', authenticate, authorize('admin'), controller.dele
 // ═══════════════════════════════════════════════
 // TEACHER ROUTES (Xem lịch dạy, xác nhận & đề xuất lịch)
 // ═══════════════════════════════════════════════
-router.get('/teacher/my-schedule', authenticate, authorize('teacher'), controller.getTeacherSchedule);
-router.put('/sections/:id/teacher-response', authenticate, authorize('teacher'), controller.respondTeacherSchedule);
+router.get('/teacher/my-schedule', authenticate, authorize('teacher', 'admin'), controller.getTeacherSchedule);
+router.put('/sections/:id/teacher-response', authenticate, authorize('teacher', 'admin'), controller.respondTeacherSchedule);
 
 // ═══════════════════════════════════════════════
 // STUDENT ROUTES (Xem CTĐT, Đăng ký & Hủy học phần)

@@ -26,6 +26,14 @@ router.get('/class-grades/:classSectionId', c.getClassGrades);
 router.post('/grades/bulk-update', c.bulkUpdateGrades);
 router.post('/grades/publish', c.publishGrades);
 router.post('/grades/lock', c.lockGrades);
+router.post('/grades/submit-to-admin', c.submitGradesToAdmin);
+router.post('/grades/request-unlock', c.requestUnlockForAppeal);
+router.post('/grades/re-submit', c.reSubmitGradesToAdmin);
+
+// --- APPEALS (Phúc khảo) ---
+router.get('/appeals', c.getTeacherAppeals);
+router.post('/appeals/:appealId/respond', c.respondToAppeal);
+router.post('/appeals/:appealId/message', c.sendAppealMessage);
 
 // --- ATTENDANCE ---
 router.post('/attendance', c.createAttendance);

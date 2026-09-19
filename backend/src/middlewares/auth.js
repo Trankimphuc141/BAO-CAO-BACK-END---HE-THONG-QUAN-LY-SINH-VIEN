@@ -12,7 +12,7 @@ exports.authenticate = (req, res, next) => {
         req.user = decoded; // { id, code, role }
         next();
     } catch (err) {
-        return res.status(403).json({ message: 'Token không hợp lệ hoặc đã hết hạn' });
+        return res.status(401).json({ message: 'Token không hợp lệ hoặc đã hết hạn' });
     }
 };
 

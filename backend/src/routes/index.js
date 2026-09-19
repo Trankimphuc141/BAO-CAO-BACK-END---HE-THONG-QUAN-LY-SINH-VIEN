@@ -20,6 +20,7 @@ router.use('/auth', authRoutes);
 router.use('/academic', academicRoutes);
 router.use('/academic-mgmt', academicManagementRoutes);
 router.use('/student', studentRoutes);
+router.use('/students', studentRoutes);
 router.use('/exams', examRoutes);
 router.use('/surveys', surveyRoutes);
 router.use('/plagiarism', plagiarismRoutes);

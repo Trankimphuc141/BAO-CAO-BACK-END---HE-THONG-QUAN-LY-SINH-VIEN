@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import jsQR from 'jsqr';
+import { io } from 'socket.io-client';
 import { api } from '../services/api';
 
 /* ─────────────────────────────────────────────
@@ -34,6 +35,12 @@ export default function AttendancePage({ currentUser }) {
   const [activeTab, setActiveTab] = useState('manual'); // 'manual' | 'image' | 'camera'
   const [checkInMessage, setCheckInMessage] = useState(null);
 
+  // Lịch sử điểm danh chi tiết
+  const [historyData, setHistoryData] = useState([]); // mảng { sectionCode, courseName, sessions: [] }
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [expandedHistSession, setExpandedHistSession] = useState(null);
+
   /* ── manual ── */
   const [qrTokenInput, setQrTokenInput] = useState('');
   const [checkingIn,   setCheckingIn]   = useState(false);
@@ -55,7 +62,23 @@ export default function AttendancePage({ currentUser }) {
   /* cleanup on unmount or tab leave */
   useEffect(() => {
     loadAttendance();
-    return () => stopCamera();
+
+    const socketUrl = import.meta.env.VITE_API_URL 
+      ? import.meta.env.VITE_API_URL.replace('/api', '') 
+      : 'http://127.0.0.1:5000';
+    const socket = io(socketUrl);
+    socket.on('attendance-updated', () => {
+      loadAttendance();
+    });
+
+    const handleFocus = () => loadAttendance();
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      stopCamera();
+      socket.disconnect();
+      window.removeEventListener('focus', handleFocus);
+    };
   }, [currentUser]);
 
   useEffect(() => {
@@ -74,7 +97,7 @@ export default function AttendancePage({ currentUser }) {
         const r = await api.getAttendanceReport(section._id);
         if (r.success && r.studentStats) {
           const me = r.studentStats.find(
-            s => s.student._id?.toString() === (currentUser?.id || '')
+            s => s.student._id?.toString() === (currentUser?.id || currentUser?._id || '')
           );
           if (me) loaded.push({ sectionCode: section.sectionCode, courseName: section.course?.name, room: section.room || 'Phòng học', ...me });
         }
@@ -82,6 +105,31 @@ export default function AttendancePage({ currentUser }) {
     }
     setRows(loaded);
     setLoading(false);
+
+    // Load lịch sử điểm danh chi tiết
+    if (secRes.success && secRes.data) {
+      loadAttendanceHistory(secRes.data);
+    }
+  };
+
+  const loadAttendanceHistory = async (sections) => {
+    setHistoryLoading(true);
+    const allHistory = [];
+    for (const section of sections) {
+      try {
+        const r = await api.getAttendanceHistory(section._id);
+        if (r.success && r.sessions) {
+          allHistory.push({
+            sectionCode: section.sectionCode,
+            courseName: section.course?.name || section.sectionCode,
+            sectionId: section._id,
+            sessions: r.sessions
+          });
+        }
+      } catch { /* ignore */ }
+    }
+    setHistoryData(allHistory);
+    setHistoryLoading(false);
   };
 
   /* ──────────────────────────────────────────
@@ -521,11 +569,11 @@ export default function AttendancePage({ currentUser }) {
                     <td><span style={{ color: '#d97706' }}>{row.lateCount}</span></td>
                     <td>{row.excusedCount}</td>
                     <td><span style={{ color: '#dc2626', fontWeight: 600 }}>{row.unexcusedCount}</span></td>
-                    <td><strong style={{ color: row.absencePercentage > 20 ? '#dc2626' : 'inherit' }}>{row.absencePercentage}%</strong></td>
+                    <td><strong style={{ color: row.absencePercentage > 30 ? '#dc2626' : 'inherit' }}>{row.absencePercentage}%</strong></td>
                     <td>
                       <span className={`badge ${row.isBannedFromExam ? 'badge-danger' : 'badge-success'}`}>
                         {row.isBannedFromExam
-                          ? <><i className="fa-solid fa-triangle-exclamation"></i>&nbsp;CẤM THI (&gt;20%)</>
+                          ? <><i className="fa-solid fa-triangle-exclamation"></i>&nbsp;CẤM THI (&gt;30%)</>
                           : <><i className="fa-solid fa-circle-check"></i>&nbsp;Đủ điều kiện</>
                         }
                       </span>
@@ -536,6 +584,147 @@ export default function AttendancePage({ currentUser }) {
             </table>
           </div>
         </div>
+      </div>
+
+      {/* ── LỊCH SỬ ĐIỂM DANH CHI TIẾT ── */}
+      <div className="glass-panel" style={{ marginTop: '8px' }}>
+        <div className="panel-header" style={{ cursor: 'pointer' }} onClick={() => setShowHistory(!showHistory)}>
+          <h3>
+            <i className="fa-solid fa-clock-rotate-left" style={{ color: 'var(--primary)' }}></i>
+            &nbsp;Lịch Sử Điểm Danh Chi Tiết Đủ 15 Buổi Học
+          </h3>
+          <button className="btn btn-secondary btn-sm">
+            {showHistory ? '▲ Thu gọn' : '▼ Xem lịch sử'}
+          </button>
+        </div>
+
+        {showHistory && (
+          <div>
+            {historyLoading ? (
+              <div style={{ textAlign: 'center', padding: '30px', color: 'var(--text-muted)' }}>
+                <i className="fa-solid fa-spinner fa-spin"></i>&nbsp;Đang tải lịch sử điểm danh...
+              </div>
+            ) : historyData.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '30px', color: 'var(--text-muted)' }}>
+                <i className="fa-solid fa-inbox" style={{ fontSize: '32px', marginBottom: '10px', display: 'block' }}></i>
+                Chưa có dữ liệu điểm danh nào
+              </div>
+            ) : (
+              historyData.map((sec) => (
+                <div key={sec.sectionId} style={{ marginBottom: '24px' }}>
+                  <div style={{
+                    display: 'flex', alignItems: 'center', gap: '10px',
+                    padding: '10px 14px', background: 'rgba(79,70,229,0.06)',
+                    borderRadius: '10px', marginBottom: '12px', borderLeft: '4px solid var(--primary)'
+                  }}>
+                    <i className="fa-solid fa-book" style={{ color: 'var(--primary)' }}></i>
+                    <div>
+                      <strong style={{ fontSize: '14px' }}>{sec.courseName}</strong>
+                      <span style={{ fontSize: '12px', color: 'var(--text-muted)', marginLeft: '8px' }}>({sec.sectionCode})</span>
+                    </div>
+                    <span style={{ marginLeft: 'auto', fontSize: '12px', color: 'var(--text-muted)' }}>
+                      15 buổi kế hoạch · {sec.sessions.filter(s => s.isFinalized).length} đã chốt
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {Array.from({ length: 15 }, (_, i) => i + 1).map((sessNum) => {
+                      const sess = (sec.sessions || []).find(s => s.sessionNumber === sessNum);
+                      if (!sess) {
+                        return (
+                          <div key={sessNum} style={{
+                            display: 'flex', alignItems: 'center', gap: '12px',
+                            padding: '10px 14px', borderRadius: '10px',
+                            border: '1px dashed var(--border-color)',
+                            background: 'rgba(0,0,0,0.01)', opacity: 0.75
+                          }}>
+                            <div style={{
+                              width: '36px', height: '36px', borderRadius: '8px', flexShrink: 0,
+                              background: '#e2e8f0', color: '#64748b',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              fontWeight: 800, fontSize: '14px'
+                            }}>
+                              {sessNum}
+                            </div>
+                            <div style={{ flex: 1 }}>
+                              <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-muted)' }}>
+                                Buổi {sessNum} — Chưa diễn ra / Chưa điểm danh
+                              </div>
+                            </div>
+                            <span style={{
+                              padding: '3px 10px', borderRadius: '20px', fontSize: '12px',
+                              background: '#f1f5f9', color: '#94a3b8', fontWeight: 600
+                            }}>Chưa ghi nhận</span>
+                          </div>
+                        );
+                      }
+
+                      const myRecord = sess.records?.find(r =>
+                        (r.student?._id || r.student)?.toString() === (currentUser?.id || currentUser?._id || '')
+                      );
+                      const statusMap = {
+                        present: { label: '✅ Có mặt', color: '#059669', bg: '#ecfdf5' },
+                        late: { label: '⏰ Đi muộn', color: '#d97706', bg: '#fffbeb' },
+                        excused_absent: { label: '📋 Nghỉ phép', color: '#2563eb', bg: '#eff6ff' },
+                        unexcused_absent: { label: '❌ Vắng K/P', color: '#dc2626', bg: '#fef2f2' },
+                      };
+                      const st = myRecord ? statusMap[myRecord.status] : null;
+
+                      return (
+                        <div key={sess._id || sessNum} style={{
+                          display: 'flex', alignItems: 'center', gap: '12px',
+                          padding: '10px 14px', borderRadius: '10px',
+                          border: `1px solid ${sess.isFinalized ? '#d97706' : 'var(--border-color)'}`,
+                          background: sess.isFinalized ? 'rgba(217,119,6,0.03)' : 'var(--bg-card)',
+                          cursor: 'pointer', transition: 'box-shadow 0.18s'
+                        }}
+                          onClick={() => setExpandedHistSession(expandedHistSession === sessNum ? null : sessNum)}
+                        >
+                          <div style={{
+                            width: '36px', height: '36px', borderRadius: '8px', flexShrink: 0,
+                            background: sess.isFinalized ? '#d97706' : 'var(--primary)',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            color: 'white', fontWeight: 800, fontSize: '14px'
+                          }}>
+                            {sess.sessionNumber}
+                          </div>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: '13px', fontWeight: 600 }}>Buổi {sess.sessionNumber} — {sess.date}</div>
+                            {myRecord?.note && (
+                              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                                Ghi chú: {myRecord.note}
+                              </div>
+                            )}
+                          </div>
+                          {st ? (
+                            <span style={{
+                              padding: '4px 10px', borderRadius: '20px', fontSize: '12px', fontWeight: 700,
+                              background: st.bg, color: st.color
+                            }}>{st.label}</span>
+                          ) : (
+                            <span style={{
+                              padding: '4px 10px', borderRadius: '20px', fontSize: '12px', fontWeight: 700,
+                              background: '#f3f4f6', color: '#6b7280'
+                            }}>Không có dữ liệu</span>
+                          )}
+                          {sess.isFinalized && (
+                            <span style={{
+                              padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 700,
+                              background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a'
+                            }}>🔒 Đã chốt</span>
+                          )}
+                          <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                            {expandedHistSession === sessNum ? '▲' : '▼'}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

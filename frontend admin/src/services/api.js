@@ -281,4 +281,144 @@ export const api = {
       return { success: false, message: 'Lỗi kết nối máy chủ' };
     }
   },
+
+  // ─── Lịch sử điểm danh (Admin) ───
+  getAttendanceHistory: async (classSectionId) => {
+    try {
+      const res = await fetch(`${API_BASE}/academic/attendance-history/${classSectionId}`, { headers: getHeaders() });
+      return await handleRes(res);
+    } catch (err) {
+      return { success: false, sessions: [] };
+    }
+  },
+
+  getClassSectionsAll: async (semester = '') => {
+    try {
+      const q = semester ? `?semester=${encodeURIComponent(semester)}` : '';
+      const res = await fetch(`${API_BASE}/academic-mgmt/sections${q}`, { headers: getHeaders() });
+      return await handleRes(res);
+    } catch (err) {
+      return { success: false, data: [] };
+    }
+  },
+
+  unfinalizeAttendance: async (classSectionId, sessionNumber) => {
+    try {
+      const res = await fetch(`${API_BASE}/academic/attendance/unfinalize`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify({ classSectionId, sessionNumber })
+      });
+      return await handleRes(res);
+    } catch (err) {
+      return { success: false, message: 'Lỗi kết nối máy chủ' };
+    }
+  },
+
+  adminEditAttendance: async (classSectionId, sessionNumber, date, records) => {
+    try {
+      const res = await fetch(`${API_BASE}/academic/attendance/admin-edit`, {
+        method: 'PUT',
+        headers: getHeaders(),
+        body: JSON.stringify({ classSectionId, sessionNumber, date, records })
+      });
+      return await handleRes(res);
+    } catch (err) {
+      return { success: false, message: 'Lỗi kết nối máy chủ' };
+    }
+  },
+
+  // ─── Quản lý & Duyệt Điểm (Admin) ───
+  getAdminGradeClasses: async () => {
+    try {
+      const res = await fetch(`${API_BASE}/admin/grades/classes`, { headers: getHeaders() });
+      return await handleRes(res);
+    } catch (err) {
+      return { success: false, data: [] };
+    }
+  },
+
+  getAdminClassGrades: async (classSectionId) => {
+    try {
+      const res = await fetch(`${API_BASE}/admin/grades/classes/${classSectionId}`, { headers: getHeaders() });
+      return await handleRes(res);
+    } catch (err) {
+      return { success: false, message: 'Lỗi kết nối máy chủ' };
+    }
+  },
+
+  adminUpdateGrade: async (gradeId, gradeData) => {
+    try {
+      const res = await fetch(`${API_BASE}/admin/grades/${gradeId}`, {
+        method: 'PUT',
+        headers: getHeaders(),
+        body: JSON.stringify(gradeData)
+      });
+      return await handleRes(res);
+    } catch (err) {
+      return { success: false, message: 'Lỗi kết nối máy chủ' };
+    }
+  },
+
+  adminPublishGrades: async (classSectionId, note = '') => {
+    try {
+      const res = await fetch(`${API_BASE}/admin/grades/publish`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify({ classSectionId, note })
+      });
+      return await handleRes(res);
+    } catch (err) {
+      return { success: false, message: 'Lỗi kết nối máy chủ' };
+    }
+  },
+
+  adminUnlockGrade: async (classSectionId, appealId = null, adminNote = '') => {
+    try {
+      const res = await fetch(`${API_BASE}/admin/grades/unlock`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify({ classSectionId, appealId, adminNote })
+      });
+      return await handleRes(res);
+    } catch (err) {
+      return { success: false, message: 'Lỗi kết nối máy chủ' };
+    }
+  },
+
+  getAdminAppeals: async (status = '') => {
+    try {
+      const q = status ? `?status=${encodeURIComponent(status)}` : '';
+      const res = await fetch(`${API_BASE}/admin/grades/appeals${q}`, { headers: getHeaders() });
+      return await handleRes(res);
+    } catch (err) {
+      return { success: false, data: [] };
+    }
+  },
+
+  adminSyncSectionGrades: async (classSectionId) => {
+    try {
+      const res = await fetch(`${API_BASE}/admin/grades/sync-section`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify({ classSectionId })
+      });
+      return await handleRes(res);
+    } catch (err) {
+      return { success: false, message: 'Lỗi kết nối máy chủ' };
+    }
+  },
+
+  adminSyncAllGrades: async () => {
+    try {
+      const res = await fetch(`${API_BASE}/admin/grades/sync-all`, {
+        method: 'POST',
+        headers: getHeaders()
+      });
+      return await handleRes(res);
+    } catch (err) {
+      return { success: false, message: 'Lỗi kết nối máy chủ' };
+    }
+  },
 };
+

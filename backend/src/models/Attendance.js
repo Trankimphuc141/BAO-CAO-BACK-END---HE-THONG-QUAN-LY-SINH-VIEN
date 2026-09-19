@@ -18,7 +18,12 @@ const attendanceSchema = new mongoose.Schema({
     takenBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     qrToken: { type: String, default: null },
     qrExpiresAt: { type: Date, default: null },
+    // Chốt điểm danh
+    isFinalized: { type: Boolean, default: false },      // Đã chốt điểm danh hay chưa
+    finalizedAt: { type: Date, default: null },          // Thời điểm chốt
+    finalizedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null }, // Ai chốt
     createdAt: { type: Date, default: Date.now }
 });
 
 module.exports = mongoose.model('Attendance', attendanceSchema);
+

@@ -10,6 +10,14 @@ export default function Dashboard({ currentUser }) {
     loadData();
   }, [currentUser]);
 
+  useEffect(() => {
+    const handleFocus = () => {
+      loadData();
+    };
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [currentUser]);
+
   const loadData = async () => {
     // Announcements
     const annRes = await api.getAnnouncements();

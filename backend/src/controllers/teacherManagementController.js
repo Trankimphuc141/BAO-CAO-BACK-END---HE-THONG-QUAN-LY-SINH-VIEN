@@ -1,5 +1,6 @@
 const User = require('../models/User');
 const Grade = require('../models/Grade');
+const GradeAppeal = require('../models/GradeAppeal');
 const Attendance = require('../models/Attendance');
 const Note = require('../models/Note');
 const Notification = require('../models/Notification');
@@ -7,6 +8,7 @@ const ClassSection = require('../models/ClassSection');
 const crypto = require('crypto');
 const QRCode = require('qrcode');
 const { createObjectCsvStringifier } = require('csv-writer');
+const { syncAttendanceToGradesInternal } = require('./academicController');
 
 // --- STUDENT MANAGEMENT ---
 exports.getStudents = async (req, res) => {
@@ -132,7 +134,20 @@ exports.exportStudents = async (req, res) => {
 // --- GRADES ---
 exports.addGrade = async (req, res) => {
     try {
-        const grade = await Grade.create({ ...req.body, student: req.params.id });
+        const existing = await Grade.findOne({ student: req.params.id, classSection: req.body.classSection });
+        if (existing) {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'Điểm môn học này đã được nhập vào hệ thống. Theo quy chế đào tạo, điểm đã nhập không thể chỉnh sửa hay nhập lại!' 
+            });
+        }
+        // Khi đã nhập điểm vào rồi thì tự động khóa (isLocked: true) không cho phép chỉnh sửa
+        const grade = await Grade.create({ 
+            ...req.body, 
+            student: req.params.id,
+            isLocked: true,
+            lockedAt: new Date()
+        });
         res.status(201).json({ success: true, data: grade });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
@@ -141,18 +156,36 @@ exports.addGrade = async (req, res) => {
 
 exports.updateGrade = async (req, res) => {
     try {
-        // Find first to trigger pre-save hook
-        const grade = await Grade.findById(req.params.gradeId);
-        if (!grade) return res.status(404).json({ success: false, message: 'Grade not found' });
-        
-        if (grade.isLocked) {
-            return res.status(403).json({ success: false, message: 'Điểm đã bị khóa, không thể sửa' });
+        const grade = await Grade.findById(req.params.gradeId).populate('student course');
+        if (!grade) {
+            return res.status(404).json({ success: false, message: 'Không tìm thấy điểm' });
         }
-        
-        Object.assign(grade, req.body);
+
+        // Nếu điểm chưa được Admin mở khóa để xử lý phúc khảo và đang bị khóa
+        if (grade.unlockStatus !== 'unlocked_for_edit' && grade.isLocked) {
+            return res.status(403).json({ 
+                success: false, 
+                message: 'Điểm môn học này đã được lưu vào hệ thống và đã bị khóa. Để chỉnh sửa sau phúc khảo, vui lòng gửi yêu cầu xin Admin mở khóa bảng điểm!' 
+            });
+        }
+
+        const { attendanceScore, midtermScore, finalScore, teacherComment, sessionScores } = req.body;
+        if (attendanceScore !== undefined) grade.attendanceScore = Number(attendanceScore);
+        if (midtermScore !== undefined) grade.midtermScore = Number(midtermScore);
+        if (finalScore !== undefined) grade.finalScore = Number(finalScore);
+        if (teacherComment !== undefined) grade.teacherComment = teacherComment;
+        if (sessionScores && Array.isArray(sessionScores) && sessionScores.length === 15) {
+            grade.sessionScores = sessionScores;
+        }
+
         await grade.save();
-        
-        res.json({ success: true, data: grade });
+
+        const io = req.app ? req.app.get('io') : null;
+        if (io) {
+            io.emit('grade-updated', { classSectionId: grade.classSection, gradeId: grade._id });
+        }
+
+        res.json({ success: true, message: 'Cập nhật điểm thành công!', data: grade });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }
@@ -160,8 +193,11 @@ exports.updateGrade = async (req, res) => {
 
 exports.deleteGrade = async (req, res) => {
     try {
-        await Grade.findByIdAndDelete(req.params.gradeId);
-        res.json({ success: true, message: 'Grade deleted' });
+        // Không cho xóa điểm đã nhập
+        return res.status(403).json({ 
+            success: false, 
+            message: 'Điểm môn học đã nhập vào hệ thống không thể xóa theo quy chế đào tạo!' 
+        });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }
@@ -254,7 +290,13 @@ exports.deleteNote = async (req, res) => {
 // GET /teacher/class-grades/:classSectionId — Toàn bộ điểm của một lớp
 exports.getClassGrades = async (req, res) => {
     try {
-        const grades = await Grade.find({ classSection: req.params.classSectionId })
+        const { classSectionId } = req.params;
+        const io = req.app ? req.app.get('io') : null;
+
+        // Tự động đồng bộ / khởi tạo dữ liệu điểm & chuyên cần cho tất cả sinh viên trong lớp
+        await syncAttendanceToGradesInternal(classSectionId, io);
+
+        const grades = await Grade.find({ classSection: classSectionId })
             .populate('student', 'code name classCode email avatar')
             .populate('course', 'code name credits')
             .sort({ 'student.code': 1 });
@@ -271,7 +313,9 @@ exports.getClassGrades = async (req, res) => {
         };
         grades.forEach(g => { if (stats.distribution[g.letterGrade] !== undefined) stats.distribution[g.letterGrade]++; });
         
-        res.json({ success: true, data: grades, stats });
+        const attendance = await Attendance.find({ classSection: req.params.classSectionId });
+        
+        res.json({ success: true, data: grades, attendance, stats });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }
@@ -356,6 +400,393 @@ exports.lockGrades = async (req, res) => {
             $set: { isLocked: true, lockedAt: new Date(), isPublished: true, publishedAt: new Date() }
         });
         res.json({ success: true, message: `Đã khóa ${result.modifiedCount} điểm thành công`, count: result.modifiedCount });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+};
+
+// POST /teacher/grades/submit-to-admin — Giảng viên nộp bảng điểm lớp học phần cho Admin kiểm tra
+exports.submitGradesToAdmin = async (req, res) => {
+    try {
+        const { classSectionId } = req.body;
+        const section = await ClassSection.findById(classSectionId).populate('course');
+        if (!section) return res.status(404).json({ success: false, message: 'Không tìm thấy lớp học phần' });
+
+        await Grade.updateMany(
+            { classSection: classSectionId },
+            {
+                $set: {
+                    submissionStatus: 'submitted',
+                    submittedAt: new Date(),
+                    submittedBy: req.user.id,
+                    isLocked: true,
+                    unlockStatus: 'locked'
+                }
+            }
+        );
+
+        // Thông báo đến các Quản trị viên (Admin)
+        const admins = await User.find({ role: 'admin' });
+        const notifPromises = admins.map(a =>
+            Notification.create({
+                recipient: a._id,
+                sender: req.user.id,
+                type: 'system',
+                title: '📥 Bảng điểm mới cần kiểm tra & công bố',
+                content: `Giảng viên đã nộp bảng điểm lớp ${section.sectionCode} (${section.course?.name}) để Admin kiểm tra và công bố.`,
+                link: '/grades',
+                classSection: classSectionId
+            })
+        );
+        await Promise.all(notifPromises);
+
+        const io = req.app.get('io');
+        if (io) {
+            admins.forEach(a => {
+                io.to(a._id.toString()).emit('new-notification', {
+                    type: 'system',
+                    title: '📥 Bảng điểm mới cần kiểm tra',
+                    content: `Giảng viên đã nộp bảng điểm lớp ${section.sectionCode}!`
+                });
+            });
+        }
+
+        res.json({ success: true, message: `Bảng điểm lớp ${section.sectionCode} đã được gửi đến Admin để kiểm tra và công bố!` });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+};
+
+// POST /teacher/grades/request-unlock — Giảng viên gửi yêu cầu xin Admin mở khóa bảng điểm để xử lý phúc khảo
+exports.requestUnlockForAppeal = async (req, res) => {
+    try {
+        const { classSectionId, appealId, reason } = req.body;
+        const section = await ClassSection.findById(classSectionId).populate('course');
+        if (!section) return res.status(404).json({ success: false, message: 'Không tìm thấy lớp' });
+
+        await Grade.updateMany(
+            { classSection: classSectionId },
+            {
+                $set: {
+                    unlockStatus: 'requested_unlock',
+                    unlockRequestedReason: reason || 'Giảng viên xin mở bảng điểm để xử lý phúc khảo sinh viên',
+                    unlockRequestedAt: new Date()
+                }
+            }
+        );
+
+        if (appealId) {
+            await GradeAppeal.findByIdAndUpdate(appealId, {
+                status: 'teacher_request_unlock',
+                teacherUnlockRequestReason: reason || 'Giảng viên xem xét và xin Admin mở khóa bảng điểm để chấm lại'
+            });
+        }
+
+        const admins = await User.find({ role: 'admin' });
+        const notifPromises = admins.map(a =>
+            Notification.create({
+                recipient: a._id,
+                sender: req.user.id,
+                type: 'system',
+                title: '🔓 Yêu cầu mở khóa bảng điểm lớp học phần',
+                content: `Giảng viên lớp ${section.sectionCode} (${section.course?.name}) yêu cầu mở khóa bảng điểm để xử lý phúc khảo điểm sinh viên: ${reason}`,
+                link: '/grades',
+                classSection: classSectionId
+            })
+        );
+        await Promise.all(notifPromises);
+
+        const io = req.app.get('io');
+        if (io) {
+            admins.forEach(a => {
+                io.to(a._id.toString()).emit('new-notification', {
+                    type: 'system',
+                    title: '🔓 Yêu cầu mở khóa bảng điểm',
+                    content: `Lớp ${section.sectionCode} có yêu cầu mở khóa để sửa phúc khảo.`
+                });
+            });
+        }
+
+        res.json({ success: true, message: 'Đã gửi yêu cầu mở khóa bảng điểm lên Admin thành công!' });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+};
+
+// POST /teacher/grades/re-submit — Giảng viên chốt điểm sau khi sửa phúc khảo và gửi lại cho Admin
+exports.reSubmitGradesToAdmin = async (req, res) => {
+    try {
+        const { classSectionId, appealId } = req.body;
+        const section = await ClassSection.findById(classSectionId).populate('course');
+        if (!section) return res.status(404).json({ success: false, message: 'Không tìm thấy lớp' });
+
+        await Grade.updateMany(
+            { classSection: classSectionId },
+            {
+                $set: {
+                    submissionStatus: 're_submitted',
+                    isLocked: true,
+                    unlockStatus: 'locked',
+                    submittedAt: new Date()
+                }
+            }
+        );
+
+        if (appealId) {
+            await GradeAppeal.findByIdAndUpdate(appealId, {
+                status: 'teacher_re_submitted',
+                teacherFeedback: req.body.feedback || 'Giảng viên đã rà soát, chấm lại và cập nhật điểm phúc khảo gửi Admin duyệt'
+            });
+        }
+
+        const admins = await User.find({ role: 'admin' });
+        const notifPromises = admins.map(a =>
+            Notification.create({
+                recipient: a._id,
+                sender: req.user.id,
+                type: 'system',
+                title: '📥 Bảng điểm sau phúc khảo đã được nộp lại',
+                content: `Giảng viên đã chốt lại điểm lớp ${section.sectionCode} (${section.course?.name}) sau khi sửa phúc khảo, chờ Admin công bố.`,
+                link: '/grades',
+                classSection: classSectionId
+            })
+        );
+        await Promise.all(notifPromises);
+
+        res.json({ success: true, message: 'Đã chốt điểm phúc khảo và gửi lại cho Admin để công bố chính thức!' });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+};
+
+// GET /teacher/appeals — Giảng viên xem danh sách các đơn phúc khảo các lớp của mình
+exports.getTeacherAppeals = async (req, res) => {
+    try {
+        const appeals = await GradeAppeal.find({ teacher: req.user.id })
+            .populate('student', 'code name email classCode avatar')
+            .populate('course', 'code name credits')
+            .populate('classSection', 'sectionCode')
+            .populate('grade')
+            .populate('messages.sender', 'name code role avatar')
+            .sort({ createdAt: -1 });
+        res.json({ success: true, data: appeals });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+};
+
+// POST /teacher/appeals/:appealId/respond — Giảng viên phản hồi đơn phúc khảo (từ chối hoặc chấp thuận)
+exports.respondToAppeal = async (req, res) => {
+    try {
+        const { appealId } = req.params;
+        const { action, feedback } = req.body; // action: 'reject' | 'reply' | 'feedback' | 'forward_to_admin'
+        const appeal = await GradeAppeal.findById(appealId).populate('student course classSection');
+        if (!appeal) return res.status(404).json({ success: false, message: 'Không tìm thấy đơn phúc khảo' });
+
+        if (action === 'reject') {
+            appeal.status = 'teacher_rejected';
+            appeal.teacherFeedback = feedback || 'Giảng viên đã rà soát lại bài thi, kết quả giữ nguyên theo barem chấm.';
+            appeal.resolvedAt = new Date();
+            appeal.messages.push({
+                sender: req.user.id,
+                role: 'teacher',
+                content: `[Từ chối phúc khảo - Giữ điểm] ${appeal.teacherFeedback}`
+            });
+            await appeal.save();
+
+            // Thông báo đến sinh viên
+            const teacherUser = await User.findById(req.user.id).select('name code');
+            await Notification.create({
+                recipient: appeal.student._id,
+                sender: req.user.id,
+                type: 'system',
+                title: '📋 Giảng viên đã phản hồi thắc mắc về điểm',
+                content: `GV ${teacherUser?.name || 'phụ trách'} phản hồi: ${appeal.teacherFeedback}`,
+                link: '/profile'
+            });
+
+            const io = req.app ? req.app.get('io') : null;
+            if (io) {
+                io.to(appeal.student._id.toString()).emit('new-notification', {
+                    type: 'system',
+                    title: '📋 Giảng viên đã phản hồi thắc mắc về điểm',
+                    content: `GV ${teacherUser?.name || 'phụ trách'} phản hồi: ${appeal.teacherFeedback}`
+                });
+            }
+
+            const populated = await GradeAppeal.findById(appealId)
+                .populate('student', 'code name email classCode avatar')
+                .populate('course', 'code name credits')
+                .populate('classSection', 'sectionCode')
+                .populate('messages.sender', 'name code role avatar');
+
+            return res.json({ success: true, message: 'Đã gửi phản hồi giữ nguyên điểm cho sinh viên.', data: populated });
+        }
+
+        if (action === 'reply' || action === 'feedback') {
+            appeal.teacherFeedback = feedback || '';
+            if (appeal.status === 'pending_teacher') {
+                appeal.status = 'teacher_replied';
+            }
+            if (feedback && feedback.trim()) {
+                appeal.messages.push({
+                    sender: req.user.id,
+                    role: 'teacher',
+                    content: feedback.trim()
+                });
+            }
+            await appeal.save();
+
+            // Thông báo đến sinh viên
+            const teacherUser = await User.findById(req.user.id).select('name code');
+            await Notification.create({
+                recipient: appeal.student._id,
+                sender: req.user.id,
+                type: 'system',
+                title: '💬 Giảng viên đã trả lời phản hồi của bạn',
+                content: `GV ${teacherUser?.name || 'phụ trách'} môn ${appeal.course?.name} nhắn: "${appeal.teacherFeedback}"`,
+                link: '/profile'
+            });
+
+            const io = req.app ? req.app.get('io') : null;
+            if (io) {
+                io.to(appeal.student._id.toString()).emit('new-notification', {
+                    type: 'system',
+                    title: '💬 Giảng viên đã trả lời phản hồi của bạn',
+                    content: `GV ${teacherUser?.name || 'phụ trách'} môn ${appeal.course?.name} nhắn: "${appeal.teacherFeedback}"`
+                });
+            }
+
+            const populated = await GradeAppeal.findById(appealId)
+                .populate('student', 'code name email classCode avatar')
+                .populate('course', 'code name credits')
+                .populate('classSection', 'sectionCode')
+                .populate('messages.sender', 'name code role avatar');
+
+            return res.json({ success: true, message: 'Đã gửi câu trả lời đến sinh viên thành công!', data: populated });
+        }
+
+        // Giảng viên xem xét đơn phúc khảo và gửi ý kiến / phản hồi lên Admin để Admin quyết định
+        if (action === 'forward_to_admin') {
+            appeal.status = 'teacher_request_unlock';
+            appeal.teacherFeedback = feedback || '';
+            appeal.teacherUnlockRequestReason = feedback || 'Giảng viên xem xét và đề xuất Admin kiểm tra đơn phúc khảo này';
+            await appeal.save();
+
+            // Cập nhật unlockStatus trên bảng điểm nếu có gradeId
+            if (appeal.grade) {
+                await Grade.findByIdAndUpdate(appeal.grade, {
+                    unlockStatus: 'requested_unlock',
+                    unlockRequestedReason: feedback || 'Giảng viên xem xét đơn phúc khảo và yêu cầu Admin kiểm tra',
+                    unlockRequestedAt: new Date()
+                });
+            }
+
+            // Thông báo tới tất cả Admin
+            const admins = await User.find({ role: 'admin' });
+            const teacher = await User.findById(req.user.id).select('name code');
+            const notifPromises = admins.map(a =>
+                Notification.create({
+                    recipient: a._id,
+                    sender: req.user.id,
+                    type: 'system',
+                    title: '📬 Giảng viên gửi ý kiến về đơn phúc khảo điểm',
+                    content: `GV ${teacher?.name || req.user.id} đã xem xét đơn phúc khảo môn ${appeal.course?.name} của SV ${appeal.student?.name} và gửi ý kiến: "${feedback || '(không có nội dung)'}". Admin vui lòng kiểm tra và quyết định.`,
+                    link: '/grades',
+                    classSection: appeal.classSection?._id || appeal.classSection
+                })
+            );
+            await Promise.all(notifPromises);
+
+            const io = req.app ? req.app.get('io') : null;
+            if (io) {
+                admins.forEach(a => {
+                    io.to(a._id.toString()).emit('new-notification', {
+                        type: 'system',
+                        title: '📬 Giảng viên gửi ý kiến phúc khảo lên Admin',
+                        content: `GV ${teacher?.name} gửi ý kiến về đơn phúc khảo môn ${appeal.course?.name}`
+                    });
+                });
+            }
+
+            // Thông báo cho sinh viên biết đơn đang được chuyển lên Admin
+            await Notification.create({
+                recipient: appeal.student._id,
+                sender: req.user.id,
+                type: 'system',
+                title: '📤 Đơn phúc khảo đã được chuyển lên Admin',
+                content: `Giảng viên đã xem xét đơn phúc khảo môn ${appeal.course?.name} và chuyển lên Admin để kiểm tra. Bạn sẽ được thông báo khi có kết quả chính thức.`,
+                link: '/profile'
+            });
+
+            return res.json({ success: true, message: 'Đã gửi ý kiến phản hồi phúc khảo lên Admin thành công!', data: appeal });
+        }
+
+        res.json({ success: true, data: appeal });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+};
+
+
+// POST /teacher/appeals/:appealId/message — Giảng viên gửi tin nhắn phản hồi trong thread hội thoại
+exports.sendAppealMessage = async (req, res) => {
+    try {
+        const teacherId = req.user.id;
+        const { appealId } = req.params;
+        const { content } = req.body;
+
+        if (!content || !content.trim()) {
+            return res.status(400).json({ success: false, message: 'Nội dung tin nhắn không được để trống' });
+        }
+
+        const appeal = await GradeAppeal.findById(appealId).populate('student course classSection');
+        if (!appeal) return res.status(404).json({ success: false, message: 'Không tìm thấy đơn phúc khảo' });
+        if (String(appeal.teacher) !== String(teacherId)) {
+            return res.status(403).json({ success: false, message: 'Bạn không phải giảng viên phụ trách đơn phúc khảo này' });
+        }
+
+        // Thêm tin nhắn vào thread
+        appeal.messages.push({
+            sender: teacherId,
+            role: 'teacher',
+            content: content.trim()
+        });
+
+        // Cập nhật teacherFeedback (legacy) và status
+        appeal.teacherFeedback = content.trim();
+        if (appeal.status === 'pending_teacher') {
+            appeal.status = 'teacher_replied';
+        }
+        await appeal.save();
+
+        // Thông báo tới sinh viên
+        const teacher = await User.findById(teacherId).select('name code');
+        await Notification.create({
+            recipient: appeal.student._id,
+            sender: teacherId,
+            type: 'system',
+            title: '💬 Giảng viên đã trả lời phản hồi của bạn',
+            content: `GV ${teacher?.name} môn ${appeal.course?.name} nhắn: "${content.trim().substring(0, 80)}${content.length > 80 ? '...' : ''}"`,
+            link: '/profile'
+        });
+
+        const io = req.app ? req.app.get('io') : null;
+        if (io) {
+            io.to(appeal.student._id.toString()).emit('new-notification', {
+                type: 'system',
+                title: '💬 Giảng viên đã trả lời phản hồi của bạn',
+                content: `GV ${teacher?.name}: "${content.trim().substring(0, 60)}..."`
+            });
+        }
+
+        // Trả về appeal đã populate messages
+        const updated = await GradeAppeal.findById(appealId)
+            .populate('student', 'code name email classCode avatar')
+            .populate('course', 'code name credits')
+            .populate('classSection', 'sectionCode')
+            .populate('messages.sender', 'name code role avatar');
+        res.json({ success: true, message: 'Tin nhắn đã được gửi đến sinh viên!', data: updated });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }

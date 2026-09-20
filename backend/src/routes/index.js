@@ -1,4 +1,4 @@
-const express = require('express');
+﻿const express = require('express');
 const router = express.Router();
 
 const authRoutes = require('./authRoutes');
@@ -14,8 +14,8 @@ const teacherRoutes = require('./teacherRoutes');
 const seedRoutes = require('./seedRoutes');
 const adminRoutes = require('./adminRoutes');
 const academicManagementRoutes = require('./academicManagementRoutes');
+const activityLogRoutes = require('./activityLogRoutes');
 
-// Định tuyến API theo 9 phân hệ chức năng
 router.use('/auth', authRoutes);
 router.use('/academic', academicRoutes);
 router.use('/academic-mgmt', academicManagementRoutes);
@@ -26,9 +26,11 @@ router.use('/surveys', surveyRoutes);
 router.use('/plagiarism', plagiarismRoutes);
 router.use('/internships', internshipRoutes);
 router.use('/theses', thesisRoutes);
+router.use('/thesis', thesisRoutes);
 router.use('/reports', reportRoutes);
 router.use('/teacher', teacherRoutes);
 router.use('/seed', seedRoutes);
 router.use('/admin', adminRoutes);
+router.use('/activity-logs', activityLogRoutes);
 
 module.exports = router;

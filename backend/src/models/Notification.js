@@ -5,7 +5,7 @@ const notificationSchema = new mongoose.Schema({
     sender: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
     type: {
         type: String,
-        enum: ['grade_published', 'grade_locked', 'attendance', 'assignment', 'announcement', 'request_response', 'system'],
+        enum: ['grade_published', 'grade_locked', 'attendance', 'assignment', 'announcement', 'request_response', 'system', 'teacher_evaluation'],
         default: 'system'
     },
     title: { type: String, required: true },

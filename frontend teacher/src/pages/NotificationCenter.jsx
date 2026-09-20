@@ -42,6 +42,7 @@ function NotificationCenter() {
             if (res.data.success) {
                 setNotifications(res.data.data);
                 setUnreadCount(res.data.unreadCount);
+                window.dispatchEvent(new Event('teacher-notifications-updated'));
             }
         } catch (err) { console.error(err); }
         finally { setLoading(false); }
@@ -58,6 +59,7 @@ function NotificationCenter() {
         try {
             await axios.put('/teacher/notifications/read-all');
             fetchNotifications();
+            window.dispatchEvent(new Event('teacher-notifications-updated'));
         } catch (err) { console.error(err); }
     };
 
@@ -66,6 +68,7 @@ function NotificationCenter() {
             await axios.put(`/teacher/notifications/${id}/read`);
             setNotifications(prev => prev.map(n => n._id === id ? { ...n, isRead: true } : n));
             setUnreadCount(prev => Math.max(0, prev - 1));
+            window.dispatchEvent(new Event('teacher-notifications-updated'));
         } catch (err) { console.error(err); }
     };
 

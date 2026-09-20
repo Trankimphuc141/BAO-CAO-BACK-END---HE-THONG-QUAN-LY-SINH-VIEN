@@ -409,6 +409,19 @@ export const api = {
     }
   },
 
+  adminDecideAppeal: async (appealId, data) => {
+    try {
+      const res = await fetch(`${API_BASE}/admin/grades/appeals/${appealId}/decide`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(data)
+      });
+      return await handleRes(res);
+    } catch (err) {
+      return { success: false, message: 'Lỗi kết nối máy chủ' };
+    }
+  },
+
   adminSyncAllGrades: async () => {
     try {
       const res = await fetch(`${API_BASE}/admin/grades/sync-all`, {
@@ -420,5 +433,54 @@ export const api = {
       return { success: false, message: 'Lỗi kết nối máy chủ' };
     }
   },
+
+  // --- THÔNG BÁO ADMIN ---
+  sendNotification: async (payload) => {
+    try {
+      const res = await fetch(`${API_BASE}/admin/notifications/send`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(payload)
+      });
+      return await handleRes(res);
+    } catch (err) {
+      return { success: false, message: 'Lỗi khi gửi thông báo: ' + err.message };
+    }
+  },
+
+  getSentNotifications: async (params = {}) => {
+    try {
+      const query = new URLSearchParams(params);
+      const res = await fetch(`${API_BASE}/admin/notifications?${query}`, {
+        headers: getHeaders()
+      });
+      return await handleRes(res);
+    } catch (err) {
+      return { success: false, message: 'Lỗi tải danh sách thông báo' };
+    }
+  },
+
+  deleteNotification: async (id) => {
+    try {
+      const res = await fetch(`${API_BASE}/admin/notifications/${id}`, {
+        method: 'DELETE',
+        headers: getHeaders()
+      });
+      return await handleRes(res);
+    } catch (err) {
+      return { success: false, message: 'Lỗi xóa thông báo' };
+    }
+  },
+
+  getNotificationTargets: async () => {
+    try {
+      const res = await fetch(`${API_BASE}/admin/notifications/targets`, {
+        headers: getHeaders()
+      });
+      return await handleRes(res);
+    } catch (err) {
+      return { success: false, message: 'Lỗi tải danh sách đối tượng' };
+    }
+  }
 };
 

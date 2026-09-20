@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
+import { io } from 'socket.io-client';
 import { api } from '../services/api';
 
 export default function ProfilePage({ currentUser, onAvatarUpdated }) {
@@ -32,6 +33,32 @@ export default function ProfilePage({ currentUser, onAvatarUpdated }) {
     return () => window.removeEventListener('focus', handleFocus);
   }, [currentUser]);
 
+  // Realtime sync via Socket.IO
+  useEffect(() => {
+    if (!currentUser) return;
+    const socketUrl = window.location.hostname === '127.0.0.1' ? 'http://127.0.0.1:5000' : 'http://localhost:5000';
+    const socket = io(socketUrl, { transports: ['websocket', 'polling'] });
+
+    const handleRealtimeSync = () => {
+      loadProfileData();
+    };
+
+    socket.on('grade-updated', handleRealtimeSync);
+    socket.on('grades-published', handleRealtimeSync);
+    socket.on('appeal-updated', handleRealtimeSync);
+    socket.on('attendance-updated', handleRealtimeSync);
+    socket.on('attendance-synced', handleRealtimeSync);
+
+    return () => {
+      socket.off('grade-updated', handleRealtimeSync);
+      socket.off('grades-published', handleRealtimeSync);
+      socket.off('appeal-updated', handleRealtimeSync);
+      socket.off('attendance-updated', handleRealtimeSync);
+      socket.off('attendance-synced', handleRealtimeSync);
+      socket.disconnect();
+    };
+  }, [currentUser]);
+
   const loadProfileData = async () => {
     if (!currentUser) return;
     const res = await api.getStudentPortalInfo(currentUser.id);
@@ -58,7 +85,7 @@ export default function ProfilePage({ currentUser, onAvatarUpdated }) {
   const handleSubmitAppeal = async (e) => {
     e.preventDefault();
     if (!appealForm.reason.trim()) {
-      alert('Vui lòng nhập lý do / nội dung phản hồi về điểm số!');
+      alert('Vui lòng nhập lý do / nội dung xin phúc khảo điểm số!');
       return;
     }
 
@@ -72,11 +99,11 @@ export default function ProfilePage({ currentUser, onAvatarUpdated }) {
       };
       const res = await api.submitGradeAppeal(targetId, payload);
       if (res.success) {
-        alert('🎉 ' + (res.message || 'Phản hồi về điểm đã được gửi thành công đến Giảng viên phụ trách!'));
+        alert('🎉 ' + (res.message || 'Đơn phúc khảo điểm đã được gửi thành công đến Giảng viên phụ trách để xem xét!'));
         setAppealModal(null);
         await loadProfileData();
       } else {
-        alert('❌ ' + (res.message || 'Lỗi khi gửi phản hồi điểm'));
+        alert('❌ ' + (res.message || 'Lỗi khi nộp đơn phúc khảo'));
       }
     } catch (err) {
       alert('❌ Lỗi kết nối máy chủ');
@@ -294,9 +321,9 @@ export default function ProfilePage({ currentUser, onAvatarUpdated }) {
                         boxShadow: '0 2px 8px rgba(79, 70, 229, 0.3)',
                         transition: 'all 0.2s ease'
                       }}
-                      title="Nhập phản hồi hoặc thắc mắc về điểm gửi trực tiếp đến Giảng viên"
+                      title="Nộp đơn phúc khảo điểm học phần gửi đến Giảng viên xem xét và chuyển Admin quyết định"
                     >
-                      <i className="fa-solid fa-paper-plane"></i> Nhập Phản Hồi Cho Giảng Viên
+                      <i className="fa-solid fa-file-signature"></i> Nộp Đơn Phúc Khảo Điểm
                     </button>
 
                     <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
@@ -335,7 +362,7 @@ export default function ProfilePage({ currentUser, onAvatarUpdated }) {
                         <th>Điểm hệ 10</th>
                         <th>Điểm chữ</th>
                         <th>Kết quả</th>
-                        <th style={{ textAlign: 'center', minWidth: '150px' }}>Phản Hồi Điểm</th>
+                        <th style={{ textAlign: 'center', minWidth: '150px' }}>Phúc Khảo Điểm</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -376,8 +403,36 @@ export default function ProfilePage({ currentUser, onAvatarUpdated }) {
                                   )}
                                 </div>
                               </td>
-                              <td>{g.midtermScore}</td>
-                              <td>{g.finalScore}</td>
+                              <td>
+                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
+                                  <span>{g.midtermScore}</span>
+                                  {activeAppeal && activeAppeal.scoreType === 'midterm' && activeAppeal.status !== 'admin_approved_published' && (
+                                    <span style={{ fontSize: '9.5px', color: '#b45309', fontWeight: 700, background: '#fef3c7', border: '1px solid #fde68a', padding: '1px 5px', borderRadius: '4px', whiteSpace: 'nowrap' }} title="Điểm ban đầu. Điểm mới chỉ đổi khi Admin chốt và công bố chính thức!">
+                                      Điểm gốc (Đang PK)
+                                    </span>
+                                  )}
+                                  {activeAppeal && activeAppeal.scoreType === 'midterm' && activeAppeal.status === 'admin_approved_published' && (
+                                    <span style={{ fontSize: '9.5px', color: '#047857', fontWeight: 800, background: '#d1fae5', border: '1px solid #a7f3d0', padding: '1px 5px', borderRadius: '4px', whiteSpace: 'nowrap' }} title="Điểm mới đã được Admin phê duyệt & công bố chính thức!">
+                                      Đã chốt mới
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                              <td>
+                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
+                                  <span>{g.finalScore}</span>
+                                  {activeAppeal && activeAppeal.scoreType === 'final' && activeAppeal.status !== 'admin_approved_published' && (
+                                    <span style={{ fontSize: '9.5px', color: '#b45309', fontWeight: 700, background: '#fef3c7', border: '1px solid #fde68a', padding: '1px 5px', borderRadius: '4px', whiteSpace: 'nowrap' }} title="Điểm ban đầu. Điểm mới chỉ đổi khi Admin chốt và công bố chính thức!">
+                                      Điểm gốc (Đang PK)
+                                    </span>
+                                  )}
+                                  {activeAppeal && activeAppeal.scoreType === 'final' && activeAppeal.status === 'admin_approved_published' && (
+                                    <span style={{ fontSize: '9.5px', color: '#047857', fontWeight: 800, background: '#d1fae5', border: '1px solid #a7f3d0', padding: '1px 5px', borderRadius: '4px', whiteSpace: 'nowrap' }} title="Điểm mới đã được Admin phê duyệt & công bố chính thức!">
+                                      Đã chốt mới
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
                               <td>
                                 <strong style={{ color: '#60a5fa' }}>{g.totalScore10}</strong>
                               </td>
@@ -401,33 +456,40 @@ export default function ProfilePage({ currentUser, onAvatarUpdated }) {
                               </td>
                               <td style={{ textAlign: 'center' }}>
                                 {activeAppeal ? (
-                                  <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: '5px' }}>
+                                  <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
                                     {(() => {
                                       const statusMap = {
-                                        'pending_teacher': { text: '⏳ Chờ GV phản hồi', color: '#b45309', bg: '#fef3c7', border: '#fcd34d' },
-                                        'teacher_replied': { text: '💬 GV đã trả lời', color: '#0369a1', bg: '#e0f2fe', border: '#7dd3fc' },
-                                        'teacher_rejected': { text: '❌ GV giữ nguyên điểm', color: '#b91c1c', bg: '#fee2e2', border: '#fca5a5' },
-                                        'teacher_request_unlock': { text: '🔓 GV xin mở bảng điểm', color: '#4338ca', bg: '#e0e7ff', border: '#c7d2fe' },
-                                        'admin_unlocked': { text: '✏️ Đang chấm lại', color: '#1d4ed8', bg: '#dbeafe', border: '#93c5fd' },
-                                        'teacher_re_submitted': { text: '📤 Chờ Admin chốt', color: '#6d28d9', bg: '#ede9fe', border: '#ddd6fe' },
-                                        'admin_approved_published': { text: '✅ Đã cập nhật điểm', color: '#047857', bg: '#d1fae5', border: '#6ee7b7' }
+                                        'pending_teacher': { text: '⏳ Chờ GV xem xét', color: '#b45309', bg: '#fef3c7', border: '#fcd34d' },
+                                        'teacher_replied': { text: '💬 GV đã trao đổi', color: '#0369a1', bg: '#e0f2fe', border: '#7dd3fc' },
+                                        'teacher_rejected': { text: '❌ GV từ chối', color: '#b91c1c', bg: '#fee2e2', border: '#fca5a5' },
+                                        'teacher_request_unlock': { text: '📤 Đã gửi Admin duyệt', color: '#4338ca', bg: '#e0e7ff', border: '#c7d2fe' },
+                                        'admin_unlocked': { text: '✏️ Admin mở khóa - Đang chấm lại', color: '#1d4ed8', bg: '#dbeafe', border: '#93c5fd' },
+                                        'teacher_re_submitted': { text: '🔄 Chờ Admin chốt công bố', color: '#6d28d9', bg: '#ede9fe', border: '#ddd6fe' },
+                                        'admin_approved_published': { text: '✅ Admin đã duyệt & cập nhật điểm', color: '#047857', bg: '#d1fae5', border: '#6ee7b7' }
                                       };
                                       const st = statusMap[activeAppeal.status] || { text: 'Đang xử lý', color: '#374151', bg: '#f3f4f6', border: '#e5e7eb' };
                                       return (
-                                        <span
-                                          style={{
-                                            fontSize: '11px',
-                                            padding: '3px 8px',
-                                            borderRadius: '6px',
-                                            fontWeight: 700,
-                                            color: st.color,
-                                            background: st.bg,
-                                            border: `1px solid ${st.border}`,
-                                            display: 'inline-block'
-                                          }}
-                                        >
-                                          {st.text}
-                                        </span>
+                                        <>
+                                          <span
+                                            style={{
+                                              fontSize: '11px',
+                                              padding: '3px 8px',
+                                              borderRadius: '6px',
+                                              fontWeight: 700,
+                                              color: st.color,
+                                              background: st.bg,
+                                              border: `1px solid ${st.border}`,
+                                              display: 'inline-block'
+                                            }}
+                                          >
+                                            {st.text}
+                                          </span>
+                                          {activeAppeal.status !== 'admin_approved_published' && activeAppeal.status !== 'teacher_rejected' && (
+                                            <div style={{ fontSize: '9.5px', color: '#64748b', fontStyle: 'italic', maxWidth: '145px', lineHeight: 1.2 }}>
+                                              (Điểm mới chỉ đổi khi Admin chốt công bố)
+                                            </div>
+                                          )}
+                                        </>
                                       );
                                     })()}
 
@@ -448,9 +510,9 @@ export default function ProfilePage({ currentUser, onAvatarUpdated }) {
                                           alignItems: 'center',
                                           gap: '4px'
                                         }}
-                                        title="Xem chi tiết nội dung phản hồi và ý kiến của giảng viên"
+                                        title="Xem chi tiết nội dung đơn phúc khảo và ý kiến phản hồi"
                                       >
-                                        <i className="fa-solid fa-eye"></i> Xem phản hồi
+                                        <i className="fa-solid fa-eye"></i> Xem phúc khảo
                                       </button>
 
                                       {(activeAppeal.status === 'teacher_rejected' || activeAppeal.status === 'admin_approved_published') && (
@@ -477,9 +539,9 @@ export default function ProfilePage({ currentUser, onAvatarUpdated }) {
                                             cursor: 'pointer',
                                             fontWeight: 600
                                           }}
-                                          title="Gửi phản hồi mới nếu còn thắc mắc"
+                                          title="Nộp đơn phúc khảo mới nếu còn thắc mắc"
                                         >
-                                          <i className="fa-solid fa-reply"></i> Gửi lại
+                                          <i className="fa-solid fa-reply"></i> Nộp lại
                                         </button>
                                       )}
                                     </div>
@@ -513,9 +575,9 @@ export default function ProfilePage({ currentUser, onAvatarUpdated }) {
                                       boxShadow: '0 2px 6px rgba(79, 70, 229, 0.25)',
                                       transition: 'all 0.2s ease'
                                     }}
-                                    title="Gửi phản hồi hoặc thắc mắc về điểm số học phần này đến Giảng viên"
+                                    title="Nộp đơn xin phúc khảo điểm học phần này gửi đến Giảng viên xem xét"
                                   >
-                                    <i className="fa-solid fa-comment-dots"></i> Phản hồi điểm
+                                    <i className="fa-solid fa-file-signature"></i> Phúc khảo điểm
                                   </button>
                                 )}
                               </td>
@@ -531,12 +593,12 @@ export default function ProfilePage({ currentUser, onAvatarUpdated }) {
           })()}
         </div>
 
-        {/* Nhật Ký Phản Hồi Điểm Học Phần Của Sinh Viên */}
+        {/* Danh Sách & Tiến Trình Đơn Phúc Khảo Điểm Học Phần Của Sinh Viên */}
         {appeals.length > 0 && (
           <div className="glass-panel" style={{ marginTop: '24px' }}>
             <div className="panel-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h3>
-                <i className="fa-solid fa-comments"></i> Nhật Ký Phản Hồi Điểm Số Của Bạn ({appeals.length})
+                <i className="fa-solid fa-file-signature"></i> Tiến Trình & Lịch Sử Đơn Phúc Khảo Điểm ({appeals.length})
               </h3>
             </div>
             <div className="table-responsive">
@@ -549,7 +611,7 @@ export default function ProfilePage({ currentUser, onAvatarUpdated }) {
                     <th>Điểm ban đầu</th>
                     <th>Điểm mới</th>
                     <th>Trạng thái</th>
-                    <th>Phản hồi của GV</th>
+                    <th>Ý kiến của GV & Admin</th>
                     <th style={{ textAlign: 'center' }}>Chi tiết</th>
                   </tr>
                 </thead>
@@ -564,14 +626,17 @@ export default function ProfilePage({ currentUser, onAvatarUpdated }) {
                     const courseName = a.course?.name || grades.find(g => String(g._id) === String(a.grade))?.course?.name || 'Môn học';
 
                     const statusMap = {
-                      'pending_teacher': { text: '⏳ Chờ GV phản hồi', color: '#b45309', bg: '#fef3c7' },
-                      'teacher_rejected': { text: '❌ GV giữ nguyên điểm', color: '#b91c1c', bg: '#fee2e2' },
-                      'teacher_request_unlock': { text: '🔓 GV xin mở bảng điểm', color: '#4338ca', bg: '#e0e7ff' },
-                      'admin_unlocked': { text: '✏️ Đang chấm lại', color: '#1d4ed8', bg: '#dbeafe' },
-                      'teacher_re_submitted': { text: '📤 Chờ Admin chốt', color: '#6d28d9', bg: '#ede9fe' },
-                      'admin_approved_published': { text: '✅ Đã công bố mới', color: '#047857', bg: '#d1fae5' }
+                      'pending_teacher': { text: '⏳ Chờ GV xem xét', color: '#b45309', bg: '#fef3c7' },
+                      'teacher_replied': { text: '💬 GV đã trao đổi', color: '#0369a1', bg: '#e0f2fe' },
+                      'teacher_rejected': { text: '❌ GV từ chối', color: '#b91c1c', bg: '#fee2e2' },
+                      'teacher_request_unlock': { text: '📤 Đã gửi Admin duyệt', color: '#4338ca', bg: '#e0e7ff' },
+                      'admin_unlocked': { text: '✏️ Admin duyệt - Đang chấm lại', color: '#1d4ed8', bg: '#dbeafe' },
+                      'teacher_re_submitted': { text: '🔄 Chờ Admin chốt công bố', color: '#6d28d9', bg: '#ede9fe' },
+                      'admin_approved_published': { text: '✅ Admin đã duyệt & cập nhật', color: '#047857', bg: '#d1fae5' }
                     };
                     const st = statusMap[a.status] || { text: 'Đang xử lý', color: '#374151', bg: '#f3f4f6' };
+
+                    const displayComment = a.adminComment || a.teacherUnlockRequestReason || a.teacherFeedback;
 
                     return (
                       <tr key={a._id}>
@@ -603,13 +668,13 @@ export default function ProfilePage({ currentUser, onAvatarUpdated }) {
                             {st.text}
                           </span>
                         </td>
-                        <td style={{ maxWidth: '200px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontSize: '12px' }} title={a.teacherFeedback || 'Chưa có phản hồi'}>
-                          {a.teacherFeedback ? (
+                        <td style={{ maxWidth: '200px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontSize: '12px' }} title={displayComment || 'Đang xử lý...'}>
+                          {displayComment ? (
                             <span style={{ color: '#0f766e', fontWeight: 600 }}>
-                              <i className="fa-solid fa-comment-dots"></i> {a.teacherFeedback}
+                              <i className="fa-solid fa-comment-dots"></i> {displayComment}
                             </span>
                           ) : (
-                            <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>Đang đợi GV phản hồi...</span>
+                            <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>Đang đợi xem xét...</span>
                           )}
                         </td>
                         <td style={{ textAlign: 'center' }}>
@@ -707,7 +772,7 @@ export default function ProfilePage({ currentUser, onAvatarUpdated }) {
               display: 'flex', justifyContent: 'space-between', alignItems: 'center'
             }}>
               <div>
-                <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800 }}>💬 Nhập Phản Hồi Cho Giảng Viên</h3>
+                <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800 }}>📝 Nộp Đơn Phúc Khảo Điểm</h3>
                 <div style={{ fontSize: '12.5px', opacity: 0.9, marginTop: '3px' }}>
                   {appealModal.course?.name || 'Học phần'} ({appealModal.course?.code || ''})
                 </div>
@@ -764,13 +829,13 @@ export default function ProfilePage({ currentUser, onAvatarUpdated }) {
                     ))}
                 </select>
                 <div style={{ fontSize: '12px', color: '#6366f1', marginTop: '5px', fontWeight: 600 }}>
-                  👨‍🏫 Giảng viên nhận phản hồi: {appealModal.classSection?.teacher?.name || appealModal.teacher?.name || 'Giảng viên phụ trách'}
+                  👨‍🏫 Giảng viên tiếp nhận phúc khảo: {appealModal.classSection?.teacher?.name || appealModal.teacher?.name || 'Giảng viên phụ trách'}
                 </div>
               </div>
 
               <div style={{ marginBottom: '16px' }}>
                 <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: 'var(--text-main)', marginBottom: '6px' }}>
-                  Chọn thành phần điểm bạn muốn phản hồi:
+                  Chọn thành phần điểm bạn muốn phúc khảo <span style={{ color: '#ef4444' }}>*</span>:
                 </label>
                 <select
                   className="form-control"
@@ -781,13 +846,12 @@ export default function ProfilePage({ currentUser, onAvatarUpdated }) {
                   <option value="final">Điểm Cuối kỳ (60%) — Điểm hiện tại: {appealModal.finalScore !== undefined ? `${appealModal.finalScore}đ` : 'Chưa có'}</option>
                   <option value="midterm">Điểm Giữa kỳ (30%) — Điểm hiện tại: {appealModal.midtermScore !== undefined ? `${appealModal.midtermScore}đ` : 'Chưa có'}</option>
                   <option value="attendance">Điểm Chuyên cần (10%) — Điểm hiện tại: {appealModal.attendanceScore !== undefined ? `${appealModal.attendanceScore}đ` : 'Chưa có'}</option>
-                  <option value="other">Trao đổi / Thắc mắc chung về học phần</option>
                 </select>
               </div>
 
               <div style={{ marginBottom: '16px' }}>
                 <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: 'var(--text-main)', marginBottom: '6px' }}>
-                  Điểm bạn tự đánh giá / mong muốn (tùy chọn, thang 10):
+                  Điểm bạn tự đánh giá / mong muốn đạt được (tùy chọn, thang 10):
                 </label>
                 <input
                   type="number"
@@ -804,13 +868,13 @@ export default function ProfilePage({ currentUser, onAvatarUpdated }) {
 
               <div style={{ marginBottom: '16px' }}>
                 <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: 'var(--text-main)', marginBottom: '6px' }}>
-                  Nội dung phản hồi / Thắc mắc về điểm <span style={{ color: '#ef4444' }}>*</span>:
+                  Lý do / Căn cứ xin phúc khảo điểm <span style={{ color: '#ef4444' }}>*</span>:
                 </label>
                 <textarea
                   required
                   rows="4"
                   className="form-control"
-                  placeholder="Ví dụ: Em chào Thầy/Cô, em đối chiếu bài thi cuối kỳ môn này với barem và thấy câu 3 làm đúng hướng giải nhưng được 1đ thay vì 2đ. Kính mong Thầy/Cô xem lại giúp em ạ..."
+                  placeholder="Ví dụ: Em chào Thầy/Cô, sau khi đối chiếu bài thi môn này với barem đáp án, em nhận thấy câu 3 phần giải thuật đã làm đúng kết quả nhưng chỉ được 1đ thay vì 2đ. Kính mong Thầy/Cô xem xét và thẩm tra lại bài thi giúp em ạ..."
                   value={appealForm.reason}
                   onChange={(e) => setAppealForm({ ...appealForm, reason: e.target.value })}
                   style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-color)', fontSize: '13px', resize: 'vertical' }}
@@ -819,12 +883,12 @@ export default function ProfilePage({ currentUser, onAvatarUpdated }) {
 
               <div style={{ marginBottom: '18px' }}>
                 <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: 'var(--text-main)', marginBottom: '6px' }}>
-                  Ghi chú hoặc thông tin liên lạc thêm (tùy chọn):
+                  Thông tin phòng thi, ca thi, link minh chứng (tùy chọn):
                 </label>
                 <input
                   type="text"
                   className="form-control"
-                  placeholder="Số điện thoại, phòng thi, ca thi, link minh chứng..."
+                  placeholder="Phòng thi, ca thi, SĐT liên lạc, link ảnh bài nộp..."
                   value={appealForm.studentNote}
                   onChange={(e) => setAppealForm({ ...appealForm, studentNote: e.target.value })}
                   style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border-color)', fontSize: '13px' }}
@@ -835,13 +899,13 @@ export default function ProfilePage({ currentUser, onAvatarUpdated }) {
                 background: '#f8fafc',
                 border: '1px solid #e2e8f0',
                 borderRadius: '8px',
-                padding: '10px 14px',
+                padding: '12px 14px',
                 fontSize: '12px',
-                color: '#64748b',
+                color: '#475569',
                 marginBottom: '20px',
-                lineHeight: 1.5
+                lineHeight: 1.55
               }}>
-                ℹ️ <strong>Quy trình xử lý:</strong> Phản hồi sẽ được gửi trực tiếp đến Giảng viên phụ trách để xem xét và phản hồi lại cho bạn. Nếu cần điều chỉnh điểm, Giảng viên sẽ xin Ban Quản Lý (Admin) mở bảng điểm để cập nhật điểm chính thức.
+                ℹ️ <strong>Quy trình xử lý phúc khảo:</strong> Đơn phúc khảo sẽ được chuyển trực tiếp đến <strong>Giảng viên phụ trách</strong> để xem xét bài thi và thẩm định. Sau đó Giảng viên chuyển ý kiến lên <strong>Ban Quản Lý (Admin)</strong> để ra quyết định kiểm tra lại điểm số và cập nhật điểm chính thức mới lên hệ thống cho bạn.
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
@@ -865,7 +929,7 @@ export default function ProfilePage({ currentUser, onAvatarUpdated }) {
                     boxShadow: '0 4px 12px rgba(79, 70, 229, 0.3)'
                   }}
                 >
-                  {submittingAppeal ? 'Đang gửi phản hồi...' : '🚀 Gửi Phản Hồi'}
+                  {submittingAppeal ? 'Đang gửi đơn...' : '🚀 Gửi Đơn Phúc Khảo'}
                 </button>
               </div>
             </form>
@@ -938,13 +1002,13 @@ export default function ProfilePage({ currentUser, onAvatarUpdated }) {
             <div style={{ padding: '10px 20px', borderBottom: '1px solid var(--border-color)', flexShrink: 0 }}>
               {(() => {
                 const sm = {
-                  'pending_teacher': { text: '⏳ Đang chờ GV phản hồi', color: '#b45309', bg: '#fef3c7' },
-                  'teacher_replied': { text: '💬 GV đã trả lời — bạn có thể tiếp tục hỏi', color: '#0369a1', bg: '#e0f2fe' },
-                  'teacher_rejected': { text: '❌ GV giữ nguyên điểm', color: '#b91c1c', bg: '#fee2e2' },
-                  'teacher_request_unlock': { text: '🔓 GV đã gửi ý kiến — chờ Admin xem xét', color: '#4338ca', bg: '#e0e7ff' },
-                  'admin_unlocked': { text: '✏️ Admin mở khóa — GV đang chấm lại', color: '#1d4ed8', bg: '#dbeafe' },
-                  'teacher_re_submitted': { text: '📤 GV nộp lại — chờ Admin công bố', color: '#6d28d9', bg: '#ede9fe' },
-                  'admin_approved_published': { text: '✅ Admin đã công bố điểm mới chính thức!', color: '#047857', bg: '#d1fae5' }
+                  'pending_teacher': { text: '⏳ Đang chờ GV xem xét', color: '#b45309', bg: '#fef3c7' },
+                  'teacher_replied': { text: '💬 GV đã trao đổi — bạn có thể gửi thêm ý kiến', color: '#0369a1', bg: '#e0f2fe' },
+                  'teacher_rejected': { text: '❌ GV từ chối phúc khảo (giữ nguyên điểm)', color: '#b91c1c', bg: '#fee2e2' },
+                  'teacher_request_unlock': { text: '📤 GV đã chuyển ý kiến lên Admin xem xét & quyết định', color: '#4338ca', bg: '#e0e7ff' },
+                  'admin_unlocked': { text: '✏️ Admin đã chấp thuận — GV đang chấm lại bài', color: '#1d4ed8', bg: '#dbeafe' },
+                  'teacher_re_submitted': { text: '🔄 GV đã nộp lại bảng điểm — chờ Admin công bố', color: '#6d28d9', bg: '#ede9fe' },
+                  'admin_approved_published': { text: '✅ Admin đã duyệt & cập nhật điểm mới chính thức!', color: '#047857', bg: '#d1fae5' }
                 }[viewAppealDetail.appeal.status] || { text: 'Đang xử lý', color: '#374151', bg: '#f3f4f6' };
                 return (
                   <span style={{
@@ -955,6 +1019,18 @@ export default function ProfilePage({ currentUser, onAvatarUpdated }) {
                 );
               })()}
             </div>
+
+            {/* Quyết định của Admin nếu có */}
+            {viewAppealDetail.appeal.adminComment && (
+              <div style={{ padding: '10px 20px 8px', flexShrink: 0, borderBottom: '1px dashed var(--border-color)', background: '#f0fdf4' }}>
+                <div style={{ fontSize: '11.5px', fontWeight: 700, color: '#15803d', marginBottom: '3px' }}>
+                  ⚖️ Quyết định / Nhận xét của Admin (Ban Quản Lý):
+                </div>
+                <div style={{ fontSize: '12.5px', color: '#166534', fontWeight: 600 }}>
+                  {viewAppealDetail.appeal.adminComment}
+                </div>
+              </div>
+            )}
 
             {/* Lý do ban đầu */}
             <div style={{ padding: '12px 20px 8px', flexShrink: 0, borderBottom: '1px dashed var(--border-color)' }}>
@@ -1013,7 +1089,7 @@ export default function ProfilePage({ currentUser, onAvatarUpdated }) {
             }}>
               <textarea
                 rows={2}
-                placeholder="Nhập phản hồi tiếp theo của bạn cho Giảng viên..."
+                placeholder="Nhập tin nhắn trao đổi tiếp theo cho Giảng viên..."
                 value={chatText}
                 onChange={(e) => setChatText(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendChatReply(); } }}

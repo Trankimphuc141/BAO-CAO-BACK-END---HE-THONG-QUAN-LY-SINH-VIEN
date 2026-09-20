@@ -90,15 +90,35 @@ function AttendanceMark() {
                 const sess = (res.data.sessions || []).find(s => s.sessionNumber === Number(sessNum));
                 setCurrentSession(sess || null);
 
-                const stuList = (currentStudents && currentStudents.length > 0)
-                    ? currentStudents
-                    : (res.data.section?.students || studentsRef.current || []);
+                // Ưu tiên gom đủ sinh viên từ danh sách lớp học phần và các phiếu điểm danh
+                const backendStudents = res.data.section?.students || [];
+                const studentMap = new Map();
+                backendStudents.forEach(s => {
+                    if (s && (s._id || s)) studentMap.set((s._id || s).toString(), s);
+                });
+                (currentStudents || []).forEach(s => {
+                    if (s && (s._id || s)) {
+                        const id = (s._id || s).toString();
+                        if (!studentMap.has(id)) studentMap.set(id, s);
+                    }
+                });
+                (sess?.records || []).forEach(r => {
+                    if (r.student && (r.student._id || r.student)) {
+                        const id = (r.student._id || r.student).toString();
+                        if (!studentMap.has(id)) studentMap.set(id, r.student);
+                    }
+                });
+
+                const stuList = Array.from(studentMap.values());
+                // CẬP NHẬT TRỰC TIẾP STATE STUDENTS ĐỂ GIAO DIỆN HIỂN THỊ ĐỦ SINH VIÊN
+                setStudents(stuList);
 
                 if (sess) {
                     if (sess.date) setDate(sess.date);
                     const loaded = {};
                     stuList.forEach(s => {
-                        loaded[s._id] = { status: 'present', note: '' };
+                        const sid = (s._id || s).toString();
+                        loaded[sid] = { status: 'present', note: '' };
                     });
                     (sess.records || []).forEach(r => {
                         const sid = (r.student?._id || r.student)?.toString();
@@ -114,7 +134,8 @@ function AttendanceMark() {
                     // Buổi mới / chưa lưu: reset tất cả sinh viên về 'present'
                     const fresh = {};
                     stuList.forEach(s => {
-                        fresh[s._id] = { status: 'present', note: '' };
+                        const sid = (s._id || s).toString();
+                        fresh[sid] = { status: 'present', note: '' };
                     });
                     setRecords(fresh);
                 }
@@ -124,29 +145,34 @@ function AttendanceMark() {
         }
     }, []);
 
-    // Khởi tạo danh sách lớp học phần khi vào trang
-    useEffect(() => {
-        const fetchClassSections = async () => {
-            try {
-                const res = await axios.get('/academic/class-sections');
-                if (res.data.success && res.data.data.length > 0) {
-                    setClassSections(res.data.data);
-                    const initialSection = (targetSectionId && res.data.data.find(s => s._id === targetSectionId)) 
-                        ? res.data.data.find(s => s._id === targetSectionId) 
-                        : res.data.data[0];
-                    setSelectedSection(initialSection._id);
-                    setSectionInfo(initialSection);
-                    const stuList = initialSection.students || [];
+    // Khởi tạo và làm mới danh sách lớp học phần
+    const fetchClassSections = useCallback(async () => {
+        try {
+            const res = await axios.get('/academic/class-sections');
+            if (res.data.success && res.data.data.length > 0) {
+                setClassSections(res.data.data);
+                const currentSecId = selectedSection || targetSectionId;
+                const matched = currentSecId 
+                    ? res.data.data.find(s => s._id === currentSecId) 
+                    : res.data.data[0];
+                const active = matched || res.data.data[0];
+                if (active) {
+                    setSelectedSection(active._id);
+                    setSectionInfo(active);
+                    const stuList = active.students || [];
                     setStudents(stuList);
-                    await loadSessionData(initialSection._id, 1, stuList);
-                    fetchHistory(initialSection._id);
+                    await loadSessionData(active._id, sessionNumber, stuList);
+                    fetchHistory(active._id);
                 }
-            } catch (err) {
-                console.error(err);
             }
-        };
+        } catch (err) {
+            console.error('Lỗi khi tải danh sách lớp học phần:', err);
+        }
+    }, [selectedSection, targetSectionId, sessionNumber, loadSessionData, fetchHistory]);
+
+    useEffect(() => {
         fetchClassSections();
-    }, [loadSessionData, fetchHistory, targetSectionId]);
+    }, [targetSectionId]);
 
     // Khi người dùng đổi lớp học phần
     const handleSectionChange = async (id) => {
@@ -176,20 +202,38 @@ function AttendanceMark() {
         }
     }, [tab, selectedSection, fetchHistory]);
 
-    // Socket realtime đồng bộ điểm danh
+    // Socket realtime đồng bộ điểm danh và đăng ký sinh viên
     useEffect(() => {
         const socketUrl = import.meta.env.VITE_API_URL 
             ? import.meta.env.VITE_API_URL.replace('/api', '') 
             : 'http://127.0.0.1:5000';
         const socket = io(socketUrl);
-        socket.on('attendance-updated', (data) => {
-            if (data?.classSectionId === selectedSection) {
+
+        const handleUpdate = (data) => {
+            if (!data?.classSectionId || data.classSectionId === selectedSection) {
                 loadSessionData(selectedSection, sessionNumber, studentsRef.current);
                 fetchHistory(selectedSection);
             }
-        });
+        };
+
+        socket.on('attendance-updated', handleUpdate);
+        socket.on('class-section-updated', handleUpdate);
+        socket.on('student-enrolled', handleUpdate);
+
+        const handleFocus = () => {
+            if (selectedSection) {
+                loadSessionData(selectedSection, sessionNumber, studentsRef.current);
+                fetchHistory(selectedSection);
+            }
+        };
+        window.addEventListener('focus', handleFocus);
+
         return () => {
+            socket.off('attendance-updated', handleUpdate);
+            socket.off('class-section-updated', handleUpdate);
+            socket.off('student-enrolled', handleUpdate);
             socket.disconnect();
+            window.removeEventListener('focus', handleFocus);
         };
     }, [selectedSection, sessionNumber, loadSessionData, fetchHistory]);
 

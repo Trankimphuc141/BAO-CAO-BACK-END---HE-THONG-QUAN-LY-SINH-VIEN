@@ -36,39 +36,48 @@ const getDriveClient = () => {
  * @param {string} mimeType File MIME type
  */
 const uploadFileToDrive = async (filePath, fileName, mimeType) => {
-    const drive = getDriveClient();
-    if (!drive) throw new Error('Google Drive service is not configured');
-
-    const fileMetadata = {
-        name: fileName,
-        parents: [FOLDER_ID],
-    };
-
-    const media = {
-        mimeType: mimeType,
-        body: typeof filePath === 'string' ? fs.createReadStream(filePath) : filePath,
-    };
-
-    const response = await drive.files.create({
-        resource: fileMetadata,
-        media: media,
-        fields: 'id, name, webViewLink, webContentLink',
-    });
-
-    // Make file readable publicly via link
     try {
-        await drive.permissions.create({
-            fileId: response.data.id,
-            requestBody: {
-                role: 'reader',
-                type: 'anyone',
-            },
-        });
-    } catch (permErr) {
-        console.warn('Warning: Could not set public permission on Drive file:', permErr.message);
-    }
+        const drive = getDriveClient();
+        if (!drive) {
+            console.warn('⚠️ Google Drive service is not configured');
+            return null;
+        }
 
-    return response.data;
+        const fileMetadata = {
+            name: fileName,
+            parents: [FOLDER_ID],
+        };
+
+        const media = {
+            mimeType: mimeType || 'application/octet-stream',
+            body: typeof filePath === 'string' ? fs.createReadStream(filePath) : filePath,
+        };
+
+        const response = await drive.files.create({
+            resource: fileMetadata,
+            media: media,
+            fields: 'id, name, webViewLink, webContentLink',
+        });
+
+        // Make file readable publicly via link
+        try {
+            await drive.permissions.create({
+                fileId: response.data.id,
+                requestBody: {
+                    role: 'reader',
+                    type: 'anyone',
+                },
+            });
+        } catch (permErr) {
+            console.warn('⚠️ Could not set public permission on Drive file:', permErr.message);
+        }
+
+        console.log(`✅ Uploaded to Google Drive successfully: ${fileName} (ID: ${response.data.id})`);
+        return response.data;
+    } catch (err) {
+        console.warn(`⚠️ Google Drive upload error for ${fileName} (${err.message}). Using local storage fallback.`);
+        return null;
+    }
 };
 
 module.exports = {

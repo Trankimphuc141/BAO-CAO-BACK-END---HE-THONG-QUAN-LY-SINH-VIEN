@@ -33,7 +33,7 @@ export default function Sidebar({ activeTab, onTabChange, currentUser, unreadCou
       items: [
         { id: 'curriculum', label: 'Chương Trình ĐT', icon: 'fa-award' },
         { id: 'registration', label: 'Đăng Ký HP', icon: 'fa-rectangle-list' },
-        { id: 'survey', label: 'Đánh Giá GD', icon: 'fa-star' },
+        { id: 'survey', label: 'Đánh Giá Giảng Viên', icon: 'fa-star' },
         { id: 'thesis', label: 'Nộp Đồ Án', icon: 'fa-file-arrow-up' },
       ]
     }

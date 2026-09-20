@@ -1,7 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { logout } from '../store/authSlice';
+import axios from '../utils/axiosConfig';
+import { io } from 'socket.io-client';
 import {
     AppBar, Box, CssBaseline, Divider, Drawer, IconButton, List,
     ListItem, ListItemButton, ListItemIcon, ListItemText, Toolbar,
@@ -22,17 +24,56 @@ import {
     Person as ProfileIcon,
     KeyboardArrowRight,
     School as ThesisIcon,
-    CalendarMonth as CalendarIcon
+    CalendarMonth as CalendarIcon,
+    HistoryEdu as AppealIcon,
+    Close as CloseIcon
 } from '@mui/icons-material';
 
 const drawerWidth = 268;
 
 const GRAD_BG = 'linear-gradient(160deg, #312e81 0%, #3730a3 40%, #4338ca 100%)';
 
+const playNotificationSound = () => {
+    try {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContext) return;
+        const ctx = new AudioContext();
+        const now = ctx.currentTime;
+
+        const osc1 = ctx.createOscillator();
+        const gain1 = ctx.createGain();
+        osc1.type = 'sine';
+        osc1.frequency.setValueAtTime(659.25, now);
+        gain1.gain.setValueAtTime(0.2, now);
+        gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+        osc1.connect(gain1);
+        gain1.connect(ctx.destination);
+        osc1.start(now);
+        osc1.stop(now + 0.3);
+
+        const osc2 = ctx.createOscillator();
+        const gain2 = ctx.createGain();
+        osc2.type = 'sine';
+        osc2.frequency.setValueAtTime(880, now + 0.12);
+        gain2.gain.setValueAtTime(0.25, now + 0.12);
+        gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+        osc2.connect(gain2);
+        gain2.connect(ctx.destination);
+        osc2.start(now + 0.12);
+        osc2.stop(now + 0.5);
+    } catch {
+        // audio policy ignored
+    }
+};
+
 function Layout(props) {
-    const { window } = props;
+    const { window: windowProp } = props;
+    const container = windowProp !== undefined ? () => windowProp().document.body : undefined;
     const [mobileOpen, setMobileOpen] = useState(false);
     const [anchorEl, setAnchorEl] = useState(null);
+    const [pendingAppealsCount, setPendingAppealsCount] = useState(0);
+    const [unreadNotifCount, setUnreadNotifCount] = useState(0);
+    const [realtimeNotif, setRealtimeNotif] = useState(null);
     const dispatch = useDispatch();
     const navigate = useNavigate();
     const location = useLocation();
@@ -43,15 +84,119 @@ function Layout(props) {
     const handleClose = () => setAnchorEl(null);
     const handleLogout = () => { dispatch(logout()); navigate('/login'); };
 
+    const fetchPendingAppeals = useCallback(async () => {
+        try {
+            const res = await axios.get('/teacher/appeals');
+            if (res.data.success && Array.isArray(res.data.data)) {
+                const count = res.data.data.filter(a => ['pending_teacher', 'teacher_request_unlock', 'admin_unlocked', 'teacher_re_submitted'].includes(a.status)).length;
+                setPendingAppealsCount(count);
+            }
+        } catch {
+            // ignore
+        }
+    }, []);
+
+    const fetchUnreadNotifications = useCallback(async () => {
+        try {
+            const res = await axios.get('/teacher/notifications');
+            if (res.data.success) {
+                setUnreadNotifCount(res.data.unreadCount || 0);
+            }
+        } catch {
+            // ignore
+        }
+    }, []);
+
+    useEffect(() => {
+        fetchPendingAppeals();
+        fetchUnreadNotifications();
+        const interval = setInterval(() => {
+            fetchPendingAppeals();
+            fetchUnreadNotifications();
+        }, 30000);
+        return () => clearInterval(interval);
+    }, [fetchPendingAppeals, fetchUnreadNotifications]);
+
+    // Lắng nghe sự kiện cập nhật thông báo cục bộ (khi đọc xong thông báo)
+    useEffect(() => {
+        const handleNotifUpdate = () => {
+            fetchUnreadNotifications();
+        };
+        window.addEventListener('teacher-notifications-updated', handleNotifUpdate);
+        return () => window.removeEventListener('teacher-notifications-updated', handleNotifUpdate);
+    }, [fetchUnreadNotifications]);
+
+    // Tự đóng toast sau 6 giây
+    useEffect(() => {
+        if (!realtimeNotif) return;
+        const timer = setTimeout(() => setRealtimeNotif(null), 6000);
+        return () => clearTimeout(timer);
+    }, [realtimeNotif]);
+
+    // Socket realtime listener cho Giảng Viên
+    useEffect(() => {
+        if (!user) return;
+        const userId = user._id || user.id;
+        const socketUrl = window.location.hostname === '127.0.0.1' 
+            ? 'http://127.0.0.1:5000' 
+            : 'http://localhost:5000';
+
+        const socket = io(socketUrl, {
+            transports: ['websocket', 'polling']
+        });
+
+        const emitJoin = () => {
+            socket.emit('join-room', { userId, role: user.role || 'teacher' });
+            socket.emit('join', { userId, role: user.role || 'teacher' });
+        };
+
+        socket.on('connect', () => {
+            console.log('🔌 [Teacher] Socket connected:', socket.id);
+            emitJoin();
+        });
+        emitJoin();
+
+        const handleNewNotification = (data) => {
+            console.log('🔔 [Teacher] New notification received:', data);
+            playNotificationSound();
+            setRealtimeNotif(data);
+            fetchPendingAppeals();
+            fetchUnreadNotifications();
+        };
+
+        const handleNewAppeal = (data) => {
+            console.log('📝 [Teacher] New appeal received:', data);
+            playNotificationSound();
+            setRealtimeNotif({
+                type: 'appeal',
+                title: '📝 Đơn phúc khảo mới',
+                content: `SV ${data.studentName || 'Sinh viên'} (${data.studentCode || ''}) nộp đơn phúc khảo môn ${data.courseName || ''}`,
+                link: '/grades?view=appeals'
+            });
+            fetchPendingAppeals();
+            fetchUnreadNotifications();
+        };
+
+        socket.on('new-notification', handleNewNotification);
+        socket.on('new-appeal', handleNewAppeal);
+
+        return () => {
+            socket.off('new-notification', handleNewNotification);
+            socket.off('new-appeal', handleNewAppeal);
+            socket.disconnect();
+        };
+    }, [user, fetchPendingAppeals, fetchUnreadNotifications]);
+
     const menuItems = [
         { text: 'Dashboard', icon: <DashboardIcon />, path: '/', exact: true },
         { text: 'Thời Khóa Biểu Dạy', icon: <CalendarIcon />, path: '/schedule' },
         { text: 'Sinh Viên', icon: <PeopleIcon />, path: '/students' },
         { text: 'Đồ Án / Luận Văn', icon: <ThesisIcon />, path: '/thesis' },
         { text: 'Nhập Điểm', icon: <GradeIcon />, path: '/grades' },
+        { text: 'Đơn Phúc Khảo', icon: <AppealIcon />, path: '/grades?view=appeals', badge: pendingAppealsCount },
         { text: 'Điểm Danh', icon: <AttendanceIcon />, path: '/attendance/mark' },
         { text: 'Điểm Danh QR', icon: <QrIcon />, path: '/attendance/qr' },
-        { text: 'Thông Báo', icon: <NotificationIcon />, path: '/notifications' },
+        { text: 'Thông Báo', icon: <NotificationIcon />, path: '/notifications', badge: unreadNotifCount },
         { text: 'Hồ Sơ', icon: <ProfileIcon />, path: '/profile' },
     ];
 
@@ -62,6 +207,9 @@ function Layout(props) {
 
     const isActive = (item) => {
         if (item.exact) return location.pathname === item.path;
+        if (item.path.includes('?')) {
+            return location.pathname + location.search === item.path;
+        }
         return location.pathname.startsWith(item.path);
     };
 
@@ -145,6 +293,19 @@ function Layout(props) {
                                         }
                                     }}
                                 />
+                                {item.badge > 0 && (
+                                    <Chip
+                                        size="small"
+                                        label={item.badge}
+                                        color="error"
+                                        sx={{
+                                            height: 20,
+                                            fontSize: '0.68rem',
+                                            fontWeight: 800,
+                                            mr: active ? 0.5 : 0
+                                        }}
+                                    />
+                                )}
                                 {active && <KeyboardArrowRight sx={{ color: '#ffffff', fontSize: 18 }} />}
                             </ListItemButton>
                         </ListItem>
@@ -232,8 +393,6 @@ function Layout(props) {
         </Box>
     );
 
-    const container = window !== undefined ? () => window().document.body : undefined;
-
     return (
         <Box sx={{ display: 'flex' }}>
             <CssBaseline />
@@ -261,6 +420,23 @@ function Layout(props) {
                     {/* Breadcrumb / page title could go here */}
                     <Box sx={{ flexGrow: 1 }} />
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                        {/* Nút chuông thông báo hiển thị số thông báo chưa đọc */}
+                        <Tooltip title={`Thông báo (${unreadNotifCount} chưa đọc)`}>
+                            <IconButton onClick={() => navigate('/notifications')} sx={{ color: '#0891b2' }}>
+                                <Badge badgeContent={unreadNotifCount} color="error" max={99}>
+                                    <NotificationIcon />
+                                </Badge>
+                            </IconButton>
+                        </Tooltip>
+
+                        {/* Nút đơn phúc khảo */}
+                        <Tooltip title={`Đơn phúc khảo cần xử lý (${pendingAppealsCount})`}>
+                            <IconButton onClick={() => navigate('/grades?view=appeals')} sx={{ color: '#4f46e5' }}>
+                                <Badge badgeContent={pendingAppealsCount} color="warning" max={99}>
+                                    <AppealIcon />
+                                </Badge>
+                            </IconButton>
+                        </Tooltip>
                         <Typography variant="body2" fontWeight={600} sx={{ display: { xs: 'none', sm: 'block' } }}>
                             {user?.name || 'Giảng Viên'}
                         </Typography>
@@ -331,6 +507,102 @@ function Layout(props) {
             >
                 <Outlet />
             </Box>
+
+            {/* Realtime Notification Popup Toast */}
+            {realtimeNotif && (
+                <Box
+                    sx={{
+                        position: 'fixed',
+                        top: 24,
+                        right: 24,
+                        zIndex: 99999,
+                        minWidth: 320,
+                        maxWidth: 400,
+                        bgcolor: 'rgba(30, 27, 75, 0.96)',
+                        backdropFilter: 'blur(16px)',
+                        color: 'white',
+                        p: 2.2,
+                        borderRadius: 3,
+                        boxShadow: '0 20px 40px -5px rgba(0,0,0,0.5), 0 0 0 1.5px rgba(129,140,248,0.5)',
+                        animation: 'slideInRight 0.35s cubic-bezier(0.16, 1, 0.3, 1)',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease',
+                        '&:hover': {
+                            transform: 'translateY(-2px)',
+                            boxShadow: '0 24px 45px -5px rgba(0,0,0,0.6), 0 0 0 2px rgba(165,180,252,0.8)'
+                        },
+                        '@keyframes slideInRight': {
+                            from: { transform: 'translateX(120%)', opacity: 0 },
+                            to: { transform: 'translateX(0)', opacity: 1 }
+                        }
+                    }}
+                    onClick={() => {
+                        if (realtimeNotif.link) navigate(realtimeNotif.link);
+                        setRealtimeNotif(null);
+                    }}
+                >
+                    <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5 }}>
+                        <Box sx={{
+                            width: 40,
+                            height: 40,
+                            borderRadius: '50%',
+                            bgcolor: 'rgba(99, 102, 241, 0.25)',
+                            border: '1.5px solid rgba(129, 140, 248, 0.6)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: '#a5b4fc',
+                            flexShrink: 0
+                        }}>
+                            <NotificationIcon sx={{ fontSize: 22 }} />
+                        </Box>
+                        <Box sx={{ flex: 1, minWidth: 0 }}>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
+                                <Typography variant="caption" sx={{
+                                    textTransform: 'uppercase',
+                                    fontWeight: 800,
+                                    fontSize: '0.68rem',
+                                    color: '#818cf8',
+                                    letterSpacing: '0.06em'
+                                }}>
+                                    🔔 Thông Báo Mới
+                                </Typography>
+                                <IconButton
+                                    size="small"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setRealtimeNotif(null);
+                                    }}
+                                    sx={{ color: 'rgba(255,255,255,0.4)', p: 0.25, '&:hover': { color: 'white' } }}
+                                >
+                                    <CloseIcon sx={{ fontSize: 16 }} />
+                                </IconButton>
+                            </Box>
+                            <Typography variant="subtitle2" sx={{ fontWeight: 700, fontSize: '0.9rem', color: '#fff', mb: 0.5, lineHeight: 1.3 }}>
+                                {realtimeNotif.title}
+                            </Typography>
+                            <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.8)', fontSize: '0.8rem', lineHeight: 1.4 }}>
+                                {realtimeNotif.content}
+                            </Typography>
+                            <Box sx={{ mt: 1.2, display: 'flex', justifyContent: 'flex-end' }}>
+                                <Chip
+                                    label="Xem chi tiết →"
+                                    size="small"
+                                    sx={{
+                                        bgcolor: 'rgba(99, 102, 241, 0.35)',
+                                        color: '#c7d2fe',
+                                        fontSize: '0.72rem',
+                                        fontWeight: 600,
+                                        height: 24,
+                                        border: '1px solid rgba(129, 140, 248, 0.4)',
+                                        '&:hover': { bgcolor: 'rgba(99, 102, 241, 0.6)' }
+                                    }}
+                                />
+                            </Box>
+                        </Box>
+                    </Box>
+                </Box>
+            )}
         </Box>
     );
 }

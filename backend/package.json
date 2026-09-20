@@ -8,7 +8,9 @@
         "dev": "nodemon server.js",
         "start": "node server.js",
         "seed": "node src/utils/seedData.js",
-        "clear": "node src/utils/clearData.js"
+        "clear": "node src/utils/clearData.js",
+        "db:backup": "node scripts/backupDatabase.js",
+        "db:clean": "node scripts/safeCleanDatabase.js"
     },
     "keywords": [],
     "author": "",
@@ -24,6 +26,7 @@
         "jsonwebtoken": "^9.0.3",
         "mongodb-memory-server": "^11.2.0",
         "mongoose": "^9.9.4",
+        "multer": "^2.4.0",
         "qrcode": "^1.5.4",
         "socket.io": "^4.8.3"
     },

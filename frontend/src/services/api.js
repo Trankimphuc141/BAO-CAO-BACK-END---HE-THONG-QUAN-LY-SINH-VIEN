@@ -22,8 +22,9 @@ class ApiService {
   }
 
   async request(endpoint, options = {}) {
+    const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
     const headers = {
-      'Content-Type': 'application/json',
+      ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
       ...(this.token ? { Authorization: `Bearer ${this.token}` } : {}),
       ...options.headers
     };
@@ -139,7 +140,7 @@ class ApiService {
     });
   }
 
-  // 6. Thesis
+  // 6. Thesis & Graduation Projects
   async getTheses() {
     return await this.request('/theses');
   }
@@ -149,10 +150,58 @@ class ApiService {
   }
 
   async registerThesis(data) {
+    if (typeof FormData !== 'undefined' && data instanceof FormData) {
+      return await this.request('/theses', {
+        method: 'POST',
+        body: data
+      });
+    }
     return await this.request('/theses', {
       method: 'POST',
       body: JSON.stringify(data)
     });
+  }
+
+  async uploadMilestoneFile(thesisId, milestoneIndex, files) {
+    if (typeof FormData !== 'undefined' && files instanceof FormData) {
+      return await this.request(`/theses/${thesisId}/milestone/${milestoneIndex}/upload`, {
+        method: 'POST',
+        body: files
+      });
+    }
+    const formData = new FormData();
+    if (Array.isArray(files)) {
+      files.forEach(f => formData.append('files', f));
+    } else if (files) {
+      formData.append('files', files);
+    }
+    return await this.request(`/theses/${thesisId}/milestone/${milestoneIndex}/upload`, {
+      method: 'POST',
+      body: formData
+    });
+  }
+
+  async uploadAdditionalFiles(thesisId, files) {
+    const formData = new FormData();
+    if (Array.isArray(files)) {
+      files.forEach(f => formData.append('files', f));
+    } else if (files) {
+      formData.append('files', files);
+    }
+    return await this.request(`/theses/${thesisId}/upload`, {
+      method: 'POST',
+      body: formData
+    });
+  }
+
+  getThesisDownloadUrl(thesisId, fileIndex) {
+    const q = fileIndex !== undefined ? `?fileIndex=${fileIndex}` : '';
+    return `${API_BASE}/theses/download/${thesisId}${q}`;
+  }
+
+  getMilestoneDownloadUrl(thesisId, milestoneIndex, fileIndex) {
+    const q = fileIndex !== undefined ? `?fileIndex=${fileIndex}` : '';
+    return `${API_BASE}/theses/download/${thesisId}/milestone/${milestoneIndex}${q}`;
   }
 
   // 7. Academic Management & Course Registration
@@ -201,6 +250,47 @@ class ApiService {
       method: 'POST',
       body: JSON.stringify({ content })
     });
+  }
+
+  // 9. Thesis / Đồ Án Tốt Nghiệp
+  async getTheses() {
+    return await this.request('/thesis');
+  }
+
+  async getAdvisors() {
+    return await this.request('/thesis/advisors');
+  }
+
+  async registerThesis(formData) {
+    return await this.request('/thesis', {
+      method: 'POST',
+      body: formData
+    });
+  }
+
+  async uploadMilestoneFile(thesisId, milestoneIndex, file) {
+    const fd = new FormData();
+    fd.append('file', file);
+    return await this.request(`/thesis/${thesisId}/milestone/${milestoneIndex}/upload`, {
+      method: 'POST',
+      body: fd
+    });
+  }
+
+  // Sinh viên cập nhật tên / deadline / ghi chú mốc tiến độ
+  async updateMilestoneInfo(thesisId, milestoneIndex, data) {
+    return await this.request(`/thesis/${thesisId}/milestone/${milestoneIndex}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data)
+    });
+  }
+
+  getThesisDownloadUrl(thesisId) {
+    return `${API_BASE}/thesis/download/${thesisId}`;
+  }
+
+  getMilestoneDownloadUrl(thesisId, milestoneIndex) {
+    return `${API_BASE}/thesis/download/${thesisId}/milestone/${milestoneIndex}`;
   }
 }
 

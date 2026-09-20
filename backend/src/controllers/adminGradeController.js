@@ -19,22 +19,28 @@ exports.getAdminGradeClasses = async (req, res) => {
             const totalGrades = grades.length;
             const publishedGrades = grades.filter(g => g.isPublished).length;
             
-            // Xác định trạng thái tổng thể của lớp:
-            // 'not_submitted': Chưa có điểm hoặc chưa gửi
-            // 'submitted': Giảng viên đã nộp chờ Admin duyệt
-            // 'published': Admin đã chốt & công bố
-            // 're_submitted': Giảng viên đã sửa theo phúc khảo và gửi lại
-            // 'requested_unlock': Giảng viên đang xin mở khóa để sửa phúc khảo
+            const isPub = grades.length > 0 && grades.every(g => g.isPublished);
+            const isSubmitted = grades.length > 0 && grades.some(g => g.submissionStatus === 'submitted');
+            const isReSub = grades.length > 0 && grades.some(g => g.submissionStatus === 're_submitted');
+            const isUnlockReq = grades.length > 0 && grades.some(g => g.unlockStatus === 'requested_unlock');
+            const isUnlockedEdit = grades.length > 0 && grades.some(g => g.unlockStatus === 'unlocked_for_edit');
+            const isLocked = grades.length > 0 && grades.some(g => g.isLocked);
+
+            let unlockStatus = 'locked';
+            if (isUnlockReq) unlockStatus = 'requested_unlock';
+            else if (isUnlockedEdit) unlockStatus = 'unlocked_for_edit';
+
+            let submissionStatus = 'not_submitted';
+            if (isReSub) submissionStatus = 're_submitted';
+            else if (isPub) submissionStatus = 'published';
+            else if (isSubmitted) submissionStatus = 'submitted';
+
             let status = 'not_submitted';
-            if (grades.some(g => g.unlockStatus === 'requested_unlock')) {
-                status = 'requested_unlock';
-            } else if (grades.some(g => g.submissionStatus === 're_submitted')) {
-                status = 're_submitted';
-            } else if (grades.length > 0 && grades.every(g => g.isPublished)) {
-                status = 'published';
-            } else if (grades.some(g => g.submissionStatus === 'submitted')) {
-                status = 'submitted';
-            }
+            if (isUnlockReq) status = 'requested_unlock';
+            else if (isUnlockedEdit) status = 'unlocked_for_edit';
+            else if (isReSub) status = 're_submitted';
+            else if (isPub) status = 'published';
+            else if (isSubmitted) status = 'submitted';
 
             const appealsCount = await GradeAppeal.countDocuments({ classSection: sec._id });
             const pendingAppealsCount = await GradeAppeal.countDocuments({ 
@@ -47,11 +53,16 @@ exports.getAdminGradeClasses = async (req, res) => {
                 sectionCode: sec.sectionCode,
                 course: sec.course,
                 teacher: sec.teacher,
+                teacherName: sec.teacher?.name || 'Giảng viên',
                 semester: sec.semester || 'HK1-2026-2027',
                 totalStudents,
                 totalGrades,
                 publishedGrades,
                 status,
+                unlockStatus,
+                submissionStatus,
+                isPublished: isPub,
+                isLocked,
                 appealsCount,
                 pendingAppealsCount
             };
@@ -70,8 +81,8 @@ exports.getAdminClassGrades = async (req, res) => {
         const { classSectionId } = req.params;
         const io = req.app ? req.app.get('io') : null;
 
-        // Tự động đồng bộ điểm & tạo bản ghi cho tất cả sinh viên trong lớp học phần
-        await syncAttendanceToGradesInternal(classSectionId, io);
+        // Tự động đồng bộ điểm & tạo bản ghi cho tất cả sinh viên trong lớp học phần (không phát socket lặp vô tận khi GET)
+        await syncAttendanceToGradesInternal(classSectionId, null);
 
         const section = await ClassSection.findById(classSectionId)
             .populate('course')
@@ -80,10 +91,17 @@ exports.getAdminClassGrades = async (req, res) => {
             return res.status(404).json({ success: false, message: 'Không tìm thấy lớp học phần' });
         }
 
-        const grades = await Grade.find({ classSection: classSectionId })
+        const allGrades = await Grade.find({ classSection: classSectionId })
             .populate('student', 'code name email classCode avatar')
             .populate('course', 'code name credits')
             .sort({ 'student.code': 1 });
+
+        // Tự động dọn dẹp các bản ghi điểm mồ côi (sinh viên đã bị xóa hoặc null)
+        const orphanGrades = allGrades.filter(g => !g.student);
+        if (orphanGrades.length > 0) {
+            await Grade.deleteMany({ _id: { $in: orphanGrades.map(og => og._id) } });
+        }
+        const grades = allGrades.filter(g => !!g.student);
 
         const appeals = await GradeAppeal.find({ classSection: classSectionId })
             .populate('student', 'code name')
@@ -101,6 +119,7 @@ exports.getAdminClassGrades = async (req, res) => {
             success: true,
             data: {
                 section,
+                classSection: section,
                 grades,
                 appeals,
                 stats
@@ -136,6 +155,11 @@ exports.adminUpdateGrade = async (req, res) => {
         grade.reviewedAt = new Date();
 
         await grade.save();
+
+        const io = req.app ? req.app.get('io') : null;
+        if (io) {
+            io.emit('grade-updated', { classSectionId: grade.classSection, gradeId: grade._id });
+        }
 
         res.json({
             success: true,
@@ -179,18 +203,22 @@ exports.adminPublishGrades = async (req, res) => {
         // Cập nhật các đơn phúc khảo của lớp đang chờ chốt công bố
         const appealsToResolve = await GradeAppeal.find({
             classSection: classSectionId,
-            status: { $in: ['teacher_re_submitted', 'admin_unlocked'] }
+            status: { $in: ['teacher_re_submitted', 'admin_unlocked', 'pending_teacher', 'teacher_replied', 'teacher_request_unlock'] }
         }).populate('grade');
 
         for (const app of appealsToResolve) {
-            if (app.grade) {
-                if (app.scoreType === 'midterm') app.newScore = app.grade.midtermScore;
-                else if (app.scoreType === 'attendance') app.newScore = app.grade.attendanceScore;
-                else app.newScore = app.grade.finalScore;
+            let gr = app.grade;
+            if (!gr) {
+                gr = await Grade.findOne({ student: app.student, classSection: classSectionId });
+            }
+            if (gr) {
+                if (app.scoreType === 'midterm') app.newScore = gr.midtermScore;
+                else if (app.scoreType === 'attendance') app.newScore = gr.attendanceScore;
+                else app.newScore = gr.finalScore;
             }
             app.status = 'admin_approved_published';
             app.resolvedAt = new Date();
-            app.adminComment = req.body.adminComment || 'Admin đã chốt duyệt và công bố điểm chính thức';
+            app.adminComment = req.body.adminComment || 'Admin đã chốt duyệt và công bố điểm chính thức sau phúc khảo';
             await app.save();
         }
 
@@ -241,6 +269,8 @@ exports.adminPublishGrades = async (req, res) => {
                     content: `Điểm lớp ${section.sectionCode} đã được Admin công bố!`
                 });
             }
+            io.emit('grade-updated', { classSectionId });
+            io.emit('grades-published', { classSectionId });
         }
 
         res.json({
@@ -302,6 +332,12 @@ exports.adminUnlockGradeForTeacher = async (req, res) => {
                     content: `Bảng điểm lớp ${section.sectionCode} đã được mở khóa để Thầy/Cô sửa điểm phúc khảo.`
                 });
             }
+        }
+
+        const io = req.app.get('io');
+        if (io) {
+            io.emit('grade-updated', { classSectionId });
+            io.emit('appeal-updated', { classSectionId, appealId });
         }
 
         res.json({
@@ -369,6 +405,219 @@ exports.adminSyncSectionGrades = async (req, res) => {
         });
     } catch (err) {
         console.error('Lỗi adminSyncSectionGrades:', err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+};
+
+// 9. POST /api/admin/grades/appeals/:appealId/decide — Admin quyết định phúc khảo (cập nhật điểm / mở khóa / từ chối)
+exports.adminDecideAppeal = async (req, res) => {
+    try {
+        const { appealId } = req.params;
+        const { decision, newScore, adminComment } = req.body;
+
+        const appeal = await GradeAppeal.findById(appealId)
+            .populate('student')
+            .populate('course')
+            .populate('classSection')
+            .populate('teacher')
+            .populate('grade');
+
+        if (!appeal) {
+            return res.status(404).json({ success: false, message: 'Không tìm thấy đơn phúc khảo' });
+        }
+
+        const io = req.app ? req.app.get('io') : null;
+
+        if (decision === 'approve_update') {
+            if (newScore === undefined || newScore === null || isNaN(Number(newScore))) {
+                return res.status(400).json({ success: false, message: 'Vui lòng nhập điểm mới hợp lệ (từ 0 đến 10)' });
+            }
+
+            const parsedScore = Number(Number(newScore).toFixed(2));
+            if (parsedScore < 0 || parsedScore > 10) {
+                return res.status(400).json({ success: false, message: 'Điểm số phải nằm trong thang điểm từ 0 đến 10' });
+            }
+
+            let grade = appeal.grade;
+            if (!grade) {
+                grade = await Grade.findOne({ student: appeal.student._id, classSection: appeal.classSection._id });
+            }
+
+            if (!grade) {
+                return res.status(404).json({ success: false, message: 'Không tìm thấy bản ghi điểm của sinh viên để cập nhật' });
+            }
+
+            // Cập nhật cột điểm tương ứng theo scoreType
+            if (appeal.scoreType === 'midterm') {
+                grade.midtermScore = parsedScore;
+            } else if (appeal.scoreType === 'attendance') {
+                grade.attendanceScore = parsedScore;
+            } else {
+                grade.finalScore = parsedScore;
+            }
+
+            grade.reviewedBy = req.user.id;
+            grade.reviewedAt = new Date();
+            grade.isPublished = true;
+            grade.isLocked = true;
+            grade.unlockStatus = 'locked';
+            grade.submissionStatus = 'published';
+            grade.adminComment = adminComment || 'Điểm đã được điều chỉnh theo quyết định phúc khảo của Ban Quản Lý (Admin)';
+
+            await grade.save(); // Tự động trigger tính toán lại totalScore10, totalScore4, letterGrade, isPassed
+
+            // Cập nhật đơn phúc khảo
+            appeal.newScore = parsedScore;
+            appeal.adminComment = adminComment || 'Admin đã kiểm tra lại và phê duyệt cập nhật điểm số mới';
+            appeal.status = 'admin_approved_published';
+            appeal.resolvedAt = new Date();
+            await appeal.save();
+
+            const scoreTypeLabel = appeal.scoreType === 'midterm' ? 'Giữa kỳ' : appeal.scoreType === 'final' ? 'Cuối kỳ' : 'Chuyên cần';
+
+            // Gửi thông báo đến Sinh viên
+            await Notification.create({
+                recipient: appeal.student._id,
+                sender: req.user.id,
+                type: 'system',
+                title: '🎉 Kết quả phúc khảo: Đã cập nhật điểm mới',
+                content: `Ban Quản Lý (Admin) đã phê duyệt đơn phúc khảo môn ${appeal.course?.name}. Điểm ${scoreTypeLabel} được cập nhật từ ${appeal.oldScore} thành ${parsedScore}. Điểm tổng kết mới: ${grade.totalScore10} (${grade.letterGrade}).`,
+                link: '/profile',
+                classSection: appeal.classSection?._id
+            });
+
+            // Gửi thông báo đến Giảng viên
+            if (appeal.teacher?._id) {
+                await Notification.create({
+                    recipient: appeal.teacher._id,
+                    sender: req.user.id,
+                    type: 'system',
+                    title: '✅ Admin đã duyệt kết quả phúc khảo',
+                    content: `Admin đã phê duyệt đơn phúc khảo môn ${appeal.course?.name} của SV ${appeal.student?.name}. Điểm ${scoreTypeLabel} đã cập nhật thành ${parsedScore}.`,
+                    link: '/grades',
+                    classSection: appeal.classSection?._id
+                });
+            }
+
+            if (io) {
+                io.to(appeal.student._id.toString()).emit('new-notification', {
+                    type: 'system',
+                    title: '🎉 Kết quả phúc khảo: Đã cập nhật điểm mới',
+                    content: `Điểm môn ${appeal.course?.name} đã được Admin cập nhật thành ${parsedScore}!`
+                });
+                io.emit('grade-updated', { classSectionId: appeal.classSection?._id || appeal.classSection });
+                io.emit('appeal-updated', { appealId });
+            }
+
+            return res.json({
+                success: true,
+                message: `Đã cập nhật điểm ${scoreTypeLabel} mới (${parsedScore}đ) cho SV ${appeal.student?.name} thành công!`,
+                data: { appeal, grade }
+            });
+        }
+
+        if (decision === 'unlock_teacher') {
+            // Mở khóa bảng điểm để giảng viên tự sửa
+            await Grade.updateMany(
+                { classSection: appeal.classSection._id },
+                {
+                    $set: {
+                        isLocked: false,
+                        unlockStatus: 'unlocked_for_edit'
+                    }
+                }
+            );
+
+            appeal.status = 'admin_unlocked';
+            appeal.adminComment = adminComment || 'Admin đã phê duyệt mở khóa cho Giảng viên kiểm tra & chấm lại';
+            await appeal.save();
+
+            if (appeal.teacher?._id) {
+                await Notification.create({
+                    recipient: appeal.teacher._id,
+                    sender: req.user.id,
+                    type: 'system',
+                    title: '🔓 Admin đã mở khóa bảng điểm để chấm lại',
+                    content: `Admin đã phê duyệt yêu cầu mở khóa lớp ${appeal.classSection?.sectionCode} (${appeal.course?.name}) để Thầy/Cô cập nhật điểm theo phúc khảo của SV ${appeal.student?.name}.`,
+                    link: '/grades',
+                    classSection: appeal.classSection?._id
+                });
+                if (io) {
+                    io.to(appeal.teacher._id.toString()).emit('new-notification', {
+                        type: 'system',
+                        title: '🔓 Admin đã mở khóa bảng điểm',
+                        content: `Admin đã duyệt mở khóa lớp ${appeal.classSection?.sectionCode} (${appeal.course?.name}) để chấm lại phúc khảo.`,
+                        link: '/grades'
+                    });
+                }
+            }
+
+            if (io) {
+                io.emit('grade-updated', { classSectionId: appeal.classSection?._id || appeal.classSection });
+                io.emit('appeal-updated', { appealId });
+            }
+
+            return res.json({
+                success: true,
+                message: 'Đã mở khóa bảng điểm lớp cho Giảng viên vào chấm và cập nhật điểm lại thành công!',
+                data: { appeal }
+            });
+        }
+
+        if (decision === 'reject') {
+            let grade = appeal.grade;
+            if (!grade) {
+                grade = await Grade.findOne({ student: appeal.student._id, classSection: appeal.classSection._id });
+            }
+            if (grade) {
+                if (appeal.scoreType === 'midterm') grade.midtermScore = appeal.oldScore;
+                else if (appeal.scoreType === 'attendance') grade.attendanceScore = appeal.oldScore;
+                else grade.finalScore = appeal.oldScore;
+                grade.isLocked = true;
+                grade.unlockStatus = 'locked';
+                grade.submissionStatus = 'published';
+                await grade.save();
+            }
+
+            appeal.status = 'teacher_rejected';
+            appeal.adminComment = adminComment || 'Admin đã kiểm tra và quyết định giữ nguyên điểm số ban đầu';
+            appeal.resolvedAt = new Date();
+            await appeal.save();
+
+            await Notification.create({
+                recipient: appeal.student._id,
+                sender: req.user.id,
+                type: 'system',
+                title: '❌ Kết quả phúc khảo: Giữ nguyên điểm',
+                content: `Admin đã kiểm tra lại đơn phúc khảo môn ${appeal.course?.name}. Điểm số ban đầu (${appeal.oldScore}) được giữ nguyên. Lý do: ${appeal.adminComment}`,
+                link: '/profile',
+                classSection: appeal.classSection?._id
+            });
+
+            if (io && appeal.student?._id) {
+                io.to(appeal.student._id.toString()).emit('new-notification', {
+                    type: 'system',
+                    title: '❌ Kết quả phúc khảo: Giữ nguyên điểm',
+                    content: `Admin đã kiểm tra đơn phúc khảo môn ${appeal.course?.name}: Điểm giữ nguyên.`,
+                    link: '/profile'
+                });
+            }
+
+            if (io) {
+                io.emit('grade-updated', { classSectionId: appeal.classSection?._id || appeal.classSection });
+                io.emit('appeal-updated', { appealId });
+            }
+
+            return res.json({
+                success: true,
+                message: 'Đã ghi nhận từ chối phúc khảo và giữ nguyên điểm số ban đầu.',
+                data: { appeal }
+            });
+        }
+
+        return res.status(400).json({ success: false, message: 'Quyết định không hợp lệ' });
+    } catch (err) {
+        console.error('Lỗi adminDecideAppeal:', err);
         res.status(500).json({ success: false, message: err.message });
     }
 };

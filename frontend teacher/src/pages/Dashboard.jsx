@@ -20,6 +20,7 @@ import {
     CheckCircle as CheckCircleIcon,
     Refresh as RefreshIcon,
     Info as InfoIcon,
+    HistoryEdu as AppealIcon,
 } from '@mui/icons-material';
 
 function StatCard({ label, value, icon, color, desc, onClick }) {
@@ -61,7 +62,7 @@ function StatCard({ label, value, icon, color, desc, onClick }) {
     );
 }
 
-function QuickActionCard({ label, desc, icon, path, gradient, shadow, navigate }) {
+function QuickActionCard({ label, desc, icon, path, gradient, shadow, navigate, badge }) {
     return (
         <Card elevation={0} onClick={() => navigate(path)} sx={{
             borderRadius: 3, cursor: 'pointer', background: gradient,
@@ -74,7 +75,23 @@ function QuickActionCard({ label, desc, icon, path, gradient, shadow, navigate }
                 height: 140, borderRadius: '50%', bgcolor: 'rgba(255,255,255,0.08)'
             }} />
             <CardContent sx={{ p: 3 }}>
-                <Box sx={{ mb: 1.5, opacity: 0.9 }}>{icon}</Box>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1.5 }}>
+                    <Box sx={{ opacity: 0.9 }}>{icon}</Box>
+                    {badge > 0 && (
+                        <Chip
+                            label={`${badge} mới`}
+                            size="small"
+                            sx={{
+                                bgcolor: '#ef4444',
+                                color: 'white',
+                                fontWeight: 800,
+                                fontSize: '0.72rem',
+                                height: 22,
+                                boxShadow: '0 2px 8px rgba(0,0,0,0.3)'
+                            }}
+                        />
+                    )}
+                </Box>
                 <Typography variant="h6" fontWeight={700}>{label}</Typography>
                 <Typography variant="body2" sx={{ opacity: 0.8, mt: 0.5, fontSize: '0.8rem' }}>{desc}</Typography>
                 <Stack direction="row" alignItems="center" gap={0.5} mt={2} sx={{ opacity: 0.75 }}>
@@ -89,7 +106,7 @@ function QuickActionCard({ label, desc, icon, path, gradient, shadow, navigate }
 function Dashboard() {
     const navigate = useNavigate();
     const { user } = useSelector(state => state.auth);
-    const [stats, setStats] = useState({ total: 0, sections: 0, courses: 0 });
+    const [stats, setStats] = useState({ total: 0, sections: 0, courses: 0, appeals: 0, unreadNotifs: 0 });
     const [loading, setLoading] = useState(true);
     const [seeding, setSeeding] = useState(false);
     const [clearing, setClearing] = useState(false);
@@ -98,14 +115,19 @@ function Dashboard() {
     const fetchStats = async () => {
         setLoading(true);
         try {
-            const [studRes, secRes] = await Promise.all([
+            const [studRes, secRes, appealRes, notifRes] = await Promise.all([
                 axios.get('/teacher/students', { params: { page: 1, limit: 1 } }).catch(() => ({ data: { total: 0 } })),
                 axios.get('/academic/class-sections').catch(() => ({ data: { count: 0 } })),
+                axios.get('/teacher/appeals').catch(() => ({ data: { data: [] } })),
+                axios.get('/teacher/notifications').catch(() => ({ data: { unreadCount: 0 } })),
             ]);
+            const pendingAppeals = (appealRes.data?.data || []).filter(a => ['pending_teacher', 'teacher_request_unlock', 'admin_unlocked', 'teacher_re_submitted'].includes(a.status)).length;
             setStats({
                 total: studRes.data.total || studRes.data.data?.length || 0,
                 sections: secRes.data.count || secRes.data.data?.length || 0,
                 courses: secRes.data.courses || 0,
+                appeals: pendingAppeals,
+                unreadNotifs: notifRes.data?.unreadCount || 0
             });
         } catch (err) { console.error(err); }
         setLoading(false);
@@ -151,9 +173,10 @@ function Dashboard() {
     const quickActions = [
         { label: 'Sinh Viên', desc: 'Xem & quản lý hồ sơ sinh viên', icon: <PeopleIcon sx={{ fontSize: 32 }} />, path: '/students', gradient: 'linear-gradient(135deg, #4F46E5, #7C3AED)', shadow: 'rgba(79,70,229,0.4)' },
         { label: 'Nhập Điểm', desc: 'Nhập, sửa, công bố và khóa điểm', icon: <GradeIcon sx={{ fontSize: 32 }} />, path: '/grades', gradient: 'linear-gradient(135deg, #0EA5E9, #38BDF8)', shadow: 'rgba(14,165,233,0.4)' },
+        { label: 'Đơn Phúc Khảo', desc: 'Xem xét & giải quyết đơn phúc khảo', icon: <AppealIcon sx={{ fontSize: 32 }} />, path: '/grades?view=appeals', gradient: 'linear-gradient(135deg, #F59E0B, #D97706)', shadow: 'rgba(245,158,11,0.4)', badge: stats.appeals },
         { label: 'Điểm Danh', desc: 'Ghi nhận sự hiện diện buổi học', icon: <AttIcon sx={{ fontSize: 32 }} />, path: '/attendance/mark', gradient: 'linear-gradient(135deg, #059669, #10B981)', shadow: 'rgba(5,150,105,0.4)' },
-        { label: 'QR Điểm Danh', desc: 'Tạo mã QR để sinh viên tự check-in', icon: <QrIcon sx={{ fontSize: 32 }} />, path: '/attendance/qr', gradient: 'linear-gradient(135deg, #D97706, #F59E0B)', shadow: 'rgba(217,119,6,0.4)' },
-        { label: 'Thông Báo', desc: 'Gửi thông báo đến lớp hoặc cá nhân', icon: <NotifIcon sx={{ fontSize: 32 }} />, path: '/notifications', gradient: 'linear-gradient(135deg, #DB2777, #EC4899)', shadow: 'rgba(219,39,119,0.4)' },
+        { label: 'QR Điểm Danh', desc: 'Tạo mã QR để sinh viên tự check-in', icon: <QrIcon sx={{ fontSize: 32 }} />, path: '/attendance/qr', gradient: 'linear-gradient(135deg, #6366F1, #4F46E5)', shadow: 'rgba(99,102,241,0.4)' },
+        { label: 'Thông Báo', desc: 'Gửi thông báo đến lớp hoặc cá nhân', icon: <NotifIcon sx={{ fontSize: 32 }} />, path: '/notifications', gradient: 'linear-gradient(135deg, #DB2777, #EC4899)', shadow: 'rgba(219,39,119,0.4)', badge: stats.unreadNotifs },
     ];
 
     return (
@@ -180,19 +203,24 @@ function Dashboard() {
 
             {/* Stats */}
             <Grid container spacing={2.5} mb={3}>
-                <Grid item xs={12} sm={6} md={4}>
+                <Grid item xs={12} sm={6} md={3}>
                     <StatCard label="Tổng Sinh Viên" value={loading ? '...' : stats.total}
                         icon={<PeopleIcon sx={{ fontSize: 26 }} />} color="#4F46E5"
                         desc="Đã đăng ký trong hệ thống" onClick={() => navigate('/students')} />
                 </Grid>
-                <Grid item xs={12} sm={6} md={4}>
+                <Grid item xs={12} sm={6} md={3}>
                     <StatCard label="Lớp Học Phần" value={loading ? '...' : stats.sections}
                         icon={<SchoolIcon sx={{ fontSize: 26 }} />} color="#059669"
                         desc="Lớp đang phụ trách" onClick={() => navigate('/grades')} />
                 </Grid>
-                <Grid item xs={12} sm={6} md={4}>
+                <Grid item xs={12} sm={6} md={3}>
+                    <StatCard label="Đơn Phúc Khảo" value={loading ? '...' : stats.appeals}
+                        icon={<AppealIcon sx={{ fontSize: 26 }} />} color="#F59E0B"
+                        desc={stats.appeals > 0 ? `${stats.appeals} đơn cần xem xét` : 'Không có đơn tồn đọng'} onClick={() => navigate('/grades?view=appeals')} />
+                </Grid>
+                <Grid item xs={12} sm={6} md={3}>
                     <StatCard label="Ngày Hôm Nay" value={new Date().toLocaleDateString('vi-VN', { weekday: 'short', day: '2-digit', month: '2-digit' })}
-                        icon={<AttIcon sx={{ fontSize: 26 }} />} color="#D97706"
+                        icon={<AttIcon sx={{ fontSize: 26 }} />} color="#0284C7"
                         desc="Lịch điểm danh hôm nay" onClick={() => navigate('/attendance/mark')} />
                 </Grid>
             </Grid>

@@ -12,6 +12,11 @@ import {
     CheckCircle as ApproveIcon,
     Visibility as ViewIcon,
     Edit as EditIcon,
+    Download as DownloadIcon,
+    InsertDriveFile as FileIcon,
+    CloudDownload as CloudDownloadIcon,
+    OpenInNew as ExternalLinkIcon,
+    AccessTime as TimeIcon,
 } from "@mui/icons-material";
 
 const MILESTONE_STATUS = [
@@ -31,6 +36,22 @@ const msColor = (status) => {
         "Yêu cầu sửa": "#ef4444", "Yêu cầu chỉnh sửa": "#ef4444", "Yeu cau chinh sua": "#ef4444",
     };
     return map[status] || "#6b7280";
+};
+
+const getDownloadUrl = (thesisId, fileIndex) => (import.meta.env.VITE_API_URL || 'http://localhost:5000/api') + '/theses/download/' + thesisId + (fileIndex !== undefined ? `?fileIndex=${fileIndex}` : '');
+const getMilestoneDownloadUrl = (thesisId, mIdx, fileIndex) => (import.meta.env.VITE_API_URL || 'http://localhost:5000/api') + '/theses/download/' + thesisId + '/milestone/' + mIdx + (fileIndex !== undefined ? `?fileIndex=${fileIndex}` : '');
+
+const formatFileSize = (bytes) => {
+    if (!bytes) return "";
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+};
+
+const formatDateTime = (iso) => {
+    if (!iso) return null;
+    const d = new Date(iso);
+    return d.toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 };
 
 export default function ThesisManagement() {
@@ -93,10 +114,9 @@ export default function ThesisManagement() {
         <Box>
             {/* Header */}
             <Box sx={{
-                width: '100%',
                 mb: 4,
                 p: { xs: 2.5, sm: 3.5 },
-                borderRadius: 3,
+                borderRadius: 4,
                 background: "linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)",
                 color: "white",
                 boxShadow: "0 16px 36px rgba(79, 70, 229, 0.25)"
@@ -108,7 +128,7 @@ export default function ThesisManagement() {
                     </Typography>
                 </Stack>
                 <Typography variant="body1" sx={{ opacity: 0.9, fontSize: { xs: '0.88rem', sm: '0.98rem' } }}>
-                    Theo dõi tiến độ và phê duyệt mốc nộp bài của sinh viên
+                    Theo dõi tiến độ, kiểm tra file nộp qua Google Drive và phê duyệt mốc nộp bài của sinh viên
                 </Typography>
             </Box>
 
@@ -173,7 +193,7 @@ export default function ThesisManagement() {
                         <Table>
                             <TableHead>
                                 <TableRow sx={{ bgcolor: alpha("#4f46e5", 0.04) }}>
-                                    {["Sinh viên", "Mã đề tài", "Tên đề tài", "Trạng thái", "M1", "M2", "M3", "M4", "Thao tác"].map(h => (
+                                    {["Sinh viên", "Mã đề tài", "Tên đề tài", "File Đồ Án", "Thời gian nộp đồ án", "Trạng thái", "Các mốc tiến độ", "Thao tác"].map(h => (
                                         <TableCell key={h} sx={{ fontWeight: 700, fontSize: "0.75rem", textTransform: "uppercase", color: "text.secondary", whiteSpace: "nowrap" }}>{h}</TableCell>
                                     ))}
                                 </TableRow>
@@ -194,26 +214,126 @@ export default function ThesisManagement() {
                                         <TableCell sx={{ maxWidth: 200 }}>
                                             <Typography fontSize="0.83rem" fontWeight={500} sx={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.topicTitle}</Typography>
                                         </TableCell>
+                                        
+                                        {/* File Đồ Án & Download */}
+                                        <TableCell sx={{ minWidth: 160 }}>
+                                            {(() => {
+                                                const fileList = (t.files && t.files.length > 0)
+                                                    ? t.files
+                                                    : (t.submittedFileName || t.submittedFileUrl ? [{ fileName: t.submittedFileName, fileSize: t.submittedFileSize }] : []);
+                                                
+                                                if (fileList.length === 0) {
+                                                    return <Typography variant="caption" color="text.secondary">Chưa nộp file</Typography>;
+                                                }
+
+                                                return (
+                                                    <Stack direction="column" spacing={0.75}>
+                                                        <Typography variant="caption" fontWeight={700} color="#4f46e5">
+                                                            📁 {fileList.length} file đã nộp:
+                                                        </Typography>
+                                                        {fileList.map((f, fIdx) => (
+                                                            <Stack key={fIdx} direction="row" alignItems="center" spacing={0.5} sx={{ bgcolor: alpha("#4f46e5", 0.05), p: 0.5, borderRadius: 1 }}>
+                                                                <Box sx={{ minWidth: 0, flex: 1 }}>
+                                                                    <Typography fontSize="0.75rem" fontWeight={600} noWrap sx={{ maxWidth: 120 }} title={f.fileName}>
+                                                                        📄 {f.fileName || `File #${fIdx + 1}`}
+                                                                    </Typography>
+                                                                    {f.fileSize ? (
+                                                                        <Typography variant="caption" color="text.secondary" fontSize="0.68rem">
+                                                                            {formatFileSize(f.fileSize)}
+                                                                        </Typography>
+                                                                    ) : null}
+                                                                </Box>
+                                                                <Button
+                                                                    size="small"
+                                                                    variant="outlined"
+                                                                    startIcon={<DownloadIcon sx={{ fontSize: 12 }} />}
+                                                                    href={getDownloadUrl(t._id, fIdx)}
+                                                                    target="_blank"
+                                                                    rel="noopener noreferrer"
+                                                                    sx={{
+                                                                        fontSize: "0.68rem",
+                                                                        py: 0.1,
+                                                                        px: 0.6,
+                                                                        borderRadius: 1,
+                                                                        textTransform: "none",
+                                                                        whiteSpace: "nowrap",
+                                                                        borderColor: "#4f46e5",
+                                                                        color: "#4f46e5",
+                                                                        minWidth: "auto"
+                                                                    }}
+                                                                >
+                                                                    Tải
+                                                                </Button>
+                                                            </Stack>
+                                                        ))}
+                                                    </Stack>
+                                                );
+                                            })()}
+                                        </TableCell>
+
+                                        {/* Cột thời gian nộp đồ án với thời gian thực tế sinh viên nộp */}
+                                        <TableCell sx={{ minWidth: 155, whiteSpace: "nowrap" }}>
+                                            {(() => {
+                                                const actualTime = t.submittedAt || (t.milestones && t.milestones.filter(m => m.submittedAt).slice(-1)[0]?.submittedAt) || (t.submittedFileName ? t.createdAt : null);
+                                                if (actualTime) {
+                                                    return (
+                                                        <Stack spacing={0.3}>
+                                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6 }}>
+                                                                <TimeIcon sx={{ fontSize: 15, color: '#059669' }} />
+                                                                <Typography fontSize="0.78rem" fontWeight={700} sx={{ color: '#059669' }}>
+                                                                    {formatDateTime(actualTime)}
+                                                                </Typography>
+                                                            </Box>
+                                                            <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.68rem' }}>
+                                                                Thời gian nộp thực tế
+                                                            </Typography>
+                                                        </Stack>
+                                                    );
+                                                }
+                                                return (
+                                                    <Chip label="Chưa nộp" size="small" sx={{ fontSize: '0.68rem', height: 22, color: 'text.secondary', bgcolor: alpha('#94a3b8', 0.12) }} />
+                                                );
+                                            })()}
+                                        </TableCell>
+
                                         <TableCell>
                                             <Chip label={t.status} size="small" sx={{ fontWeight: 700, fontSize: "0.7rem" }} />
                                         </TableCell>
-                                        {[0, 1, 2, 3].map(i => {
-                                            const m = t.milestones?.[i];
-                                            return (
-                                                <TableCell key={i} align="center">
-                                                    {m ? (
-                                                        <Tooltip title={`${m.name} - ${m.status}`}>
-                                                            <Chip label={m.status === "Đã duyệt" || m.status === "Da duyet" ? "✓" : m.status === "Đã nộp" || m.status === "Da nop" ? "!" : "–"} size="small"
-                                                                sx={{ width: 28, height: 22, fontSize: "0.7rem", fontWeight: 700, bgcolor: alpha(msColor(m.status), 0.12), color: msColor(m.status), border: `1px solid ${alpha(msColor(m.status), 0.3)}` }} />
+                                        {/* Hiển thị động theo số mốc thực tế */}
+                                        <TableCell sx={{ minWidth: 220 }}>
+                                            {t.milestones && t.milestones.length > 0 ? (
+                                                <Stack spacing={0.5}>
+                                                    {t.milestones.map((m, i) => (
+                                                        <Tooltip
+                                                            key={i}
+                                                            title={`${m.name} — ${m.status}${m.submittedAt ? ` | Nộp lúc: ${formatDateTime(m.submittedAt)}` : ''}${m.submittedFileName ? ` | ${m.submittedFileName}` : ''}`}
+                                                        >
+                                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                                                <Chip
+                                                                    label={`M${i + 1}`}
+                                                                    size="small"
+                                                                    sx={{
+                                                                        height: 20, fontSize: '0.68rem', fontWeight: 700,
+                                                                        bgcolor: alpha(msColor(m.status), 0.12),
+                                                                        color: msColor(m.status),
+                                                                        border: `1px solid ${alpha(msColor(m.status), 0.3)}`
+                                                                    }}
+                                                                />
+                                                                <Typography variant="caption" noWrap sx={{ maxWidth: 80, fontSize: '0.68rem', color: 'text.secondary' }}>
+                                                                    {m.submittedAt ? formatDateTime(m.submittedAt) : '—'}
+                                                                </Typography>
+                                                            </Box>
                                                         </Tooltip>
-                                                    ) : "—"}
-                                                </TableCell>
-                                            );
-                                        })}
+                                                    ))}
+                                                </Stack>
+                                            ) : (
+                                                <Typography variant="caption" color="text.secondary">Chưa có mốc</Typography>
+                                            )}
+                                        </TableCell>
                                         <TableCell>
                                             <Button size="small" variant="contained" startIcon={<ViewIcon fontSize="small" />} onClick={() => openDetail(t)}
                                                 sx={{ borderRadius: 2, textTransform: "none", fontSize: "0.75rem", background: "linear-gradient(135deg,#4f46e5,#7c3aed)", boxShadow: "none" }}>
-                                                Duyệt
+                                                Duyệt & Tải
                                             </Button>
                                         </TableCell>
                                     </TableRow>
@@ -251,9 +371,85 @@ export default function ThesisManagement() {
                                     <Typography variant="caption" color="text.secondary" fontWeight={600}>Mô tả đề tài</Typography>
                                     <Typography fontSize="0.88rem" color="text.secondary">{selected.description || "Chưa có mô tả"}</Typography>
                                 </Box>
+
+                                {/* Danh sách các file đồ án của sinh viên */}
+                                {(() => {
+                                    const fileList = (selected.files && selected.files.length > 0)
+                                        ? selected.files
+                                        : (selected.submittedFileName || selected.submittedFileUrl ? [{
+                                            fileName: selected.submittedFileName,
+                                            fileSize: selected.submittedFileSize,
+                                            driveWebViewLink: selected.driveWebViewLink
+                                        }] : []);
+
+                                    if (fileList.length === 0) return null;
+
+                                    return (
+                                        <Box sx={{ gridColumn: { sm: 'span 2' }, p: 2, bgcolor: alpha('#4f46e5', 0.05), borderRadius: 2, border: '1px solid', borderColor: alpha('#4f46e5', 0.2) }}>
+                                            <Typography fontWeight={700} fontSize="0.95rem" color="#3730a3" mb={1.5} display="flex" alignItems="center" gap={1}>
+                                                📁 Danh sách file đồ án đã nộp ({fileList.length} file):
+                                            </Typography>
+                                            <Stack spacing={1}>
+                                                {fileList.map((file, fIdx) => (
+                                                    <Paper key={fIdx} elevation={0} sx={{ p: 1.5, bgcolor: 'white', borderRadius: 1.5, border: '1px solid', borderColor: alpha('#4f46e5', 0.15) }}>
+                                                        <Stack direction="row" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={1.5}>
+                                                            <Stack direction="row" alignItems="center" spacing={1.5}>
+                                                                <Box sx={{ p: 1, bgcolor: '#4f46e5', color: 'white', borderRadius: 1.5, display: 'flex' }}>
+                                                                    <FileIcon />
+                                                                </Box>
+                                                                <Box>
+                                                                    <Typography fontWeight={700} fontSize="0.88rem" color="text.primary">
+                                                                        {file.fileName || `File #${fIdx + 1}`}
+                                                                    </Typography>
+                                                                    <Typography variant="caption" color="text.secondary">
+                                                                        {file.fileSize ? `Dung lượng: ${formatFileSize(file.fileSize)} • ` : ''}
+                                                                        Lưu trữ: Google Drive & Server
+                                                                        {file.submittedAt ? ` • Nộp lúc: ${formatDateTime(file.submittedAt)}` : ''}
+                                                                    </Typography>
+                                                                </Box>
+                                                            </Stack>
+                                                            <Stack direction="row" spacing={1}>
+                                                                {file.driveWebViewLink && (
+                                                                    <Button
+                                                                        size="small"
+                                                                        variant="outlined"
+                                                                        startIcon={<ExternalLinkIcon fontSize="small" />}
+                                                                        href={file.driveWebViewLink}
+                                                                        target="_blank"
+                                                                        rel="noopener noreferrer"
+                                                                        sx={{ textTransform: 'none', borderRadius: 1.5, fontSize: '0.78rem' }}
+                                                                    >
+                                                                        Google Drive
+                                                                    </Button>
+                                                                )}
+                                                                <Button
+                                                                    size="small"
+                                                                    variant="contained"
+                                                                    startIcon={<CloudDownloadIcon fontSize="small" />}
+                                                                    href={getDownloadUrl(selected._id, fIdx)}
+                                                                    target="_blank"
+                                                                    rel="noopener noreferrer"
+                                                                    sx={{
+                                                                        textTransform: 'none',
+                                                                        borderRadius: 1.5,
+                                                                        fontSize: '0.78rem',
+                                                                        background: 'linear-gradient(135deg, #4f46e5, #7c3aed)'
+                                                                    }}
+                                                                >
+                                                                    Tải về máy
+                                                                </Button>
+                                                            </Stack>
+                                                        </Stack>
+                                                    </Paper>
+                                                ))}
+                                            </Stack>
+                                        </Box>
+                                    );
+                                })()}
                             </Box>
+                            
                             <Divider sx={{ mb: 3 }} />
-                            <Typography fontWeight={700} mb={2}>Các mốc tiến độ (M1 đến M4)</Typography>
+                            <Typography fontWeight={700} mb={2}>Các mốc tiến độ ({selected.milestones?.length || 0} mốc)</Typography>
                             <Stack spacing={2}>
                                 {(selected.milestones || []).map((m, idx) => (
                                     <Paper key={idx} variant="outlined" sx={{ p: 2, borderRadius: 2, borderColor: alpha(msColor(m.status), 0.4) }}>
@@ -263,8 +459,62 @@ export default function ThesisManagement() {
                                                     <Typography fontWeight={700} fontSize="0.88rem">M{idx + 1}: {m.name}</Typography>
                                                     <Chip label={m.status} size="small" sx={{ fontWeight: 700, fontSize: "0.68rem", bgcolor: alpha(msColor(m.status), 0.12), color: msColor(m.status) }} />
                                                 </Stack>
-                                                <Typography variant="caption" color="text.secondary">Hạn nộp: {m.deadline}{m.score != null ? ` — Điểm: ${m.score}` : ""}</Typography>
-                                                {m.comment && <Typography fontSize="0.82rem" color="text.secondary" mt={0.5}>💬 {m.comment}</Typography>}
+                                                {/* Thời gian nộp thực tế */}
+                                                <Stack direction="row" spacing={2} flexWrap="wrap">
+                                                    {m.submittedAt ? (
+                                                        <Typography variant="caption" sx={{ color: '#059669', fontWeight: 600 }}>
+                                                             ⏱ Nộp thực tế: {formatDateTime(m.submittedAt)}
+                                                        </Typography>
+                                                    ) : (
+                                                        <Typography variant="caption" color="text.disabled">Chưa nộp</Typography>
+                                                    )}
+                                                    {m.score != null && (
+                                                        <Typography variant="caption" sx={{ color: '#4f46e5', fontWeight: 600 }}>🎯 Điểm: {m.score}</Typography>
+                                                    )}
+                                                </Stack>
+                                                
+                                                {/* File nộp của mốc */}
+                                                {(() => {
+                                                    const mFiles = (m.files && m.files.length > 0)
+                                                        ? m.files
+                                                        : (m.submittedFileName ? [{ fileName: m.submittedFileName, fileSize: m.submittedFileSize }] : []);
+                                                    
+                                                    if (mFiles.length === 0) return null;
+
+                                                    return (
+                                                        <Stack spacing={0.5} mt={1}>
+                                                            <Typography variant="caption" fontWeight={700} color="primary.main">
+                                                                📎 File đính kèm mốc ({mFiles.length} file):
+                                                            </Typography>
+                                                            {mFiles.map((mf, mfIdx) => (
+                                                                <Box key={mfIdx} display="flex" alignItems="center" gap={1} sx={{ bgcolor: alpha('#4f46e5', 0.04), p: 0.5, px: 1, borderRadius: 1 }}>
+                                                                    <Typography fontSize="0.78rem" color="primary.main" fontWeight={600} noWrap sx={{ maxWidth: 220 }} title={mf.fileName}>
+                                                                        📄 {mf.fileName || `File #${mfIdx + 1}`} {mf.fileSize ? `(${formatFileSize(mf.fileSize)})` : ''}
+                                                                    </Typography>
+                                                                    <Button
+                                                                        size="small"
+                                                                        variant="text"
+                                                                        startIcon={<DownloadIcon sx={{ fontSize: 13 }} />}
+                                                                        href={getMilestoneDownloadUrl(selected._id, idx, mfIdx)}
+                                                                        target="_blank"
+                                                                        rel="noopener noreferrer"
+                                                                        sx={{ fontSize: "0.72rem", py: 0, textTransform: "none" }}
+                                                                    >
+                                                                        Tải file
+                                                                    </Button>
+                                                                </Box>
+                                                            ))}
+                                                        </Stack>
+                                                    );
+                                                })()}
+
+                                                {(m.studentNote || m.note) && (
+                                                    <Typography fontSize="0.82rem" sx={{ color: '#4338ca', bgcolor: alpha('#4f46e5', 0.08), p: 0.75, borderRadius: 1, mt: 0.75 }}>
+                                                        📝 <strong>Ghi chú sinh viên:</strong> {m.studentNote || m.note}
+                                                    </Typography>
+                                                )}
+
+                                                {m.comment && <Typography fontSize="0.82rem" color="text.secondary" mt={0.5}>💬 GV nhận xét: {m.comment}</Typography>}
                                             </Box>
                                             {editingMilestone?.milestoneIndex === idx ? (
                                                 <Chip label="Đang sửa..." size="small" color="warning" />
@@ -313,4 +563,3 @@ export default function ThesisManagement() {
         </Box>
     );
 }
-

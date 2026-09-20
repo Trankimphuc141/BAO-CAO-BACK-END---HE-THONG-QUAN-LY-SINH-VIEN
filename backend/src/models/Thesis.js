@@ -1,12 +1,32 @@
 const mongoose = require('mongoose');
 
+const fileItemSchema = new mongoose.Schema({
+    fileName: { type: String, default: '' },
+    fileSize: { type: Number, default: 0 },
+    fileUrl: { type: String, default: '' },
+    driveFileId: { type: String, default: '' },
+    driveWebViewLink: { type: String, default: '' },
+    driveWebContentLink: { type: String, default: '' },
+    localFilePath: { type: String, default: '' },
+    submittedAt: { type: Date, default: Date.now }
+}, { _id: false });
+
 const milestoneSchema = new mongoose.Schema({
     name: { type: String, required: true }, // Đề cương, Báo cáo giữa kỳ, Nộp bản cuối, Bảo vệ hội đồng
-    deadline: { type: String, required: true },
+    deadline: { type: String, default: '' },
     status: { type: String, enum: ['Chưa nộp', 'Đã nộp', 'Đã duyệt', 'Yêu cầu sửa'], default: 'Chưa nộp' },
     score: { type: Number, min: 0, max: 10, default: null },
     comment: { type: String, default: '' },
+    studentNote: { type: String, default: '' },
+    note: { type: String, default: '' },
+    files: [fileItemSchema],
+    submittedFileName: { type: String, default: '' },
+    submittedFileSize: { type: Number, default: 0 },
     submittedFileUrl: { type: String, default: '' },
+    driveFileId: { type: String, default: '' },
+    driveWebViewLink: { type: String, default: '' },
+    driveWebContentLink: { type: String, default: '' },
+    localFilePath: { type: String, default: '' },
     submittedAt: { type: Date }
 }, { _id: false });
 
@@ -25,6 +45,15 @@ const thesisSchema = new mongoose.Schema({
         default: 'Đang thực hiện' 
     },
     milestones: [milestoneSchema],
+    files: [fileItemSchema],
+    submittedFileName: { type: String, default: '' },
+    submittedFileSize: { type: Number, default: 0 },
+    submittedFileUrl: { type: String, default: '' },
+    driveFileId: { type: String, default: '' },
+    driveWebViewLink: { type: String, default: '' },
+    driveWebContentLink: { type: String, default: '' },
+    localFilePath: { type: String, default: '' },
+    submittedAt: { type: Date },
     similarityPercentage: { type: Number, default: 0 }, // % trùng lặp kiểm tra chống đạo văn
     advisorScore: { type: Number, min: 0, max: 10, default: null },
     reviewerScore: { type: Number, min: 0, max: 10, default: null },

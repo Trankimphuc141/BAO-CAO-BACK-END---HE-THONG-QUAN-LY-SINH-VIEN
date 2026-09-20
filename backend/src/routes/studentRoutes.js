@@ -6,6 +6,7 @@ const { authenticate, authorize } = require('../middlewares/auth');
 // Sinh viên xem thông tin học vụ và thông báo
 router.get('/portal', authenticate, studentController.getStudentPortalInfo);
 router.get('/portal-info', authenticate, studentController.getStudentPortalInfo);
+router.get('/portal-info/:studentId', authenticate, studentController.getStudentPortalInfo);
 router.get('/portal/:studentId', authenticate, studentController.getStudentPortalInfo);
 router.get('/announcements', authenticate, studentController.getAnnouncements);
 

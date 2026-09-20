@@ -18,13 +18,21 @@ app.set('io', io);
 io.on('connection', (socket) => {
     console.log(`🔌 Socket connected: ${socket.id}`);
 
-    // User joins their personal room (userId) để nhận thông báo cá nhân
-    socket.on('join-room', ({ userId }) => {
+    const handleJoin = (data) => {
+        const userId = typeof data === 'string' ? data : (data?.userId || data?.id);
         if (userId) {
-            socket.join(userId);
-            console.log(`👤 User ${userId} joined room`);
+            socket.join(String(userId));
+            console.log(`👤 Socket ${socket.id} joined user room: ${userId}`);
         }
-    });
+        const role = typeof data === 'object' ? data?.role : null;
+        if (role) {
+            socket.join(String(role));
+            console.log(`🎭 Socket ${socket.id} joined role room: ${role}`);
+        }
+    };
+
+    socket.on('join-room', handleJoin);
+    socket.on('join', handleJoin);
 
     socket.on('disconnect', () => {
         console.log(`🔌 Socket disconnected: ${socket.id}`);

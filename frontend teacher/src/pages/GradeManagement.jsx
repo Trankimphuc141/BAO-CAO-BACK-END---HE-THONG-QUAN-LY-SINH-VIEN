@@ -1,10 +1,11 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { io } from 'socket.io-client';
 import axios from '../utils/axiosConfig';
 import {
     Box, Typography, Paper, Grid, MenuItem, TextField, Button, Table,
     TableBody, TableCell, TableContainer, TableHead, TableRow, Chip,
     Stack, Alert, Snackbar, Tooltip, IconButton, alpha, Dialog, DialogTitle,
-    DialogContent, DialogActions, LinearProgress, Badge, CircularProgress, Fade
+    DialogContent, DialogActions, LinearProgress, Badge, CircularProgress, Fade, Avatar
 } from '@mui/material';
 import {
     Lock as LockIcon, LockOpen as UnlockIcon, Publish as PublishIcon,
@@ -13,7 +14,7 @@ import {
     CheckCircle, Cancel, Sync as SyncIcon, Send as SendIcon,
     HistoryEdu as AppealIcon, HourglassEmpty as HourglassIcon
 } from '@mui/icons-material';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 const LETTER_COLORS = {
     A: { bg: '#ecfdf5', color: '#065f46', border: '#a7f3d0' },
@@ -28,10 +29,13 @@ const LETTER_COLORS = {
 
 function GradeManagement() {
     const navigate = useNavigate();
+    const location = useLocation();
     const [classSections, setClassSections] = useState([]);
     const [selectedSection, setSelectedSection] = useState('');
     const [grades, setGrades] = useState([]);
     const [appeals, setAppeals] = useState([]);
+    const [appealsFilterTab, setAppealsFilterTab] = useState('all'); // 'all' | 'current'
+    const [appealSearch, setAppealSearch] = useState('');
     const [stats, setStats] = useState(null);
     const [attendance, setAttendance] = useState([]);
     const [showDailyAttendance, setShowDailyAttendance] = useState(true);
@@ -56,17 +60,85 @@ function GradeManagement() {
     const [chatText, setChatText] = useState('');
     const [chatSending, setChatSending] = useState(false);
 
+    const fetchAppeals = useCallback(async () => {
+        try {
+            const res = await axios.get('/teacher/appeals');
+            if (res.data && res.data.success && Array.isArray(res.data.data)) {
+                setAppeals(res.data.data);
+                setChatDialog(prev => {
+                    if (!prev) return null;
+                    return res.data.data.find(a => a && a._id === prev._id) || prev;
+                });
+            } else {
+                setAppeals([]);
+            }
+        } catch (err) {
+            console.error('Lỗi fetchAppeals:', err);
+            setAppeals([]);
+        }
+    }, []);
+
+    const fetchClassSections = useCallback(async () => {
+        try {
+            const res = await axios.get('/academic/class-sections');
+            if (res.data && res.data.success && Array.isArray(res.data.data)) {
+                setClassSections(res.data.data);
+                if (res.data.data.length > 0) {
+                    setSelectedSection(prev => prev || res.data.data[0]._id);
+                }
+            } else {
+                setClassSections([]);
+            }
+        } catch (err) {
+            console.error(err);
+            setClassSections([]);
+        }
+    }, []);
+
+    const fetchGrades = useCallback(async () => {
+        if (!selectedSection) return;
+        setLoading(true);
+        try {
+            const res = await axios.get(`/teacher/class-grades/${selectedSection}`);
+            if (res.data && res.data.success && Array.isArray(res.data.data)) {
+                setGrades(res.data.data);
+                setStats(res.data.stats || null);
+                if (Array.isArray(res.data.attendance)) setAttendance(res.data.attendance);
+            } else {
+                setGrades([]);
+                setStats(null);
+            }
+        } catch (err) {
+            console.error(err);
+            setGrades([]);
+            setStats(null);
+        } finally {
+            setLoading(false);
+        }
+    }, [selectedSection]);
+
+    useEffect(() => {
+        const params = new URLSearchParams(location.search);
+        if (params.get('view') === 'appeals') {
+            setOpenAppealsDialog(true);
+        }
+        const secParam = params.get('section');
+        if (secParam) {
+            setSelectedSection(secParam);
+        }
+    }, [location.search]);
+
     useEffect(() => { 
         fetchClassSections(); 
         fetchAppeals();
-    }, []);
+    }, [fetchClassSections, fetchAppeals]);
 
     useEffect(() => { 
         if (selectedSection) {
             fetchGrades(); 
             fetchAppeals();
         }
-    }, [selectedSection]);
+    }, [selectedSection, fetchGrades, fetchAppeals]);
 
     useEffect(() => {
         const handleFocus = () => {
@@ -77,62 +149,56 @@ function GradeManagement() {
         };
         window.addEventListener('focus', handleFocus);
         return () => window.removeEventListener('focus', handleFocus);
-    }, [selectedSection, fetchGrades]);
+    }, [selectedSection, fetchGrades, fetchAppeals]);
 
-    const fetchAppeals = async () => {
-        try {
-            const res = await axios.get('/teacher/appeals');
-            if (res.data.success) {
-                setAppeals(res.data.data);
-                setChatDialog(prev => {
-                    if (!prev) return null;
-                    return res.data.data.find(a => a._id === prev._id) || prev;
-                });
-            }
-        } catch (err) {
-            console.error('Lỗi fetchAppeals:', err);
-        }
-    };
+    // Lắng nghe WebSocket realtime để đồng bộ dữ liệu ngay lập tức không cần F5
+    useEffect(() => {
+        const socketUrl = window.location.hostname === '127.0.0.1' ? 'http://127.0.0.1:5000' : 'http://localhost:5000';
+        const socket = io(socketUrl, { transports: ['websocket', 'polling'] });
 
-    const fetchClassSections = async () => {
-        try {
-            const res = await axios.get('/academic/class-sections');
-            if (res.data.success) {
-                setClassSections(res.data.data);
-                if (res.data.data.length > 0) setSelectedSection(res.data.data[0]._id);
+        const handleRealtimeSync = () => {
+            fetchClassSections();
+            fetchAppeals();
+            if (selectedSection) {
+                fetchGrades();
             }
-        } catch (err) { console.error(err); }
-    };
+        };
 
-    const fetchGrades = useCallback(async () => {
-        if (!selectedSection) return;
-        setLoading(true);
-        try {
-            const res = await axios.get(`/teacher/class-grades/${selectedSection}`);
-            if (res.data.success) {
-                setGrades(res.data.data);
-                setStats(res.data.stats);
-                if (res.data.attendance) setAttendance(res.data.attendance);
-            }
-        } catch (err) { console.error(err); }
-        finally { setLoading(false); }
-    }, [selectedSection]);
+        socket.on('grade-updated', handleRealtimeSync);
+        socket.on('grades-submitted', handleRealtimeSync);
+        socket.on('grades-published', handleRealtimeSync);
+        socket.on('appeal-updated', handleRealtimeSync);
+        socket.on('new-appeal', handleRealtimeSync);
+        socket.on('attendance-updated', handleRealtimeSync);
+        socket.on('attendance-synced', handleRealtimeSync);
+
+        return () => {
+            socket.off('grade-updated', handleRealtimeSync);
+            socket.off('grades-submitted', handleRealtimeSync);
+            socket.off('grades-published', handleRealtimeSync);
+            socket.off('appeal-updated', handleRealtimeSync);
+            socket.off('new-appeal', handleRealtimeSync);
+            socket.off('attendance-updated', handleRealtimeSync);
+            socket.off('attendance-synced', handleRealtimeSync);
+            socket.disconnect();
+        };
+    }, [selectedSection, fetchClassSections, fetchAppeals, fetchGrades]);
 
     // Đồng bộ điểm chuyên cần từ 15 buổi điểm danh sang bảng điểm
     const handleSyncAttendance = async () => {
         if (!selectedSection) {
-            setSnack({ type: 'warning', message: 'Vui lòng chọn lớp học phần cần đồng bộ.' });
+            setSnack({ severity: 'warning', msg: 'Vui lòng chọn lớp học phần cần đồng bộ.' });
             return;
         }
         try {
             setSyncing(true);
             const res = await axios.post('/academic/attendance/sync', { classSectionId: selectedSection });
             if (res.data.success) {
-                setSnack({ type: 'success', message: res.data.message || 'Đồng bộ điểm chuyên cần thành công!' });
+                setSnack({ severity: 'success', msg: res.data.message || 'Đồng bộ điểm chuyên cần thành công!' });
                 fetchGrades();
             }
         } catch (err) {
-            setSnack({ type: 'error', message: err.response?.data?.message || 'Lỗi khi đồng bộ điểm chuyên cần.' });
+            setSnack({ severity: 'error', msg: err.response?.data?.message || 'Lỗi khi đồng bộ điểm chuyên cần.' });
         } finally {
             setSyncing(false);
         }
@@ -140,7 +206,10 @@ function GradeManagement() {
 
     // Helper tính điểm / trạng thái từng buổi học cho sinh viên
     const getStudentSessionAttendance = (studentId, grade, sessionNum) => {
-        if (grade.sessionScores && grade.sessionScores.length >= sessionNum) {
+        if (!grade) {
+            return { score: 10, label: '100%', tooltip: `Buổi ${sessionNum}: 100%`, status: 'good' };
+        }
+        if (Array.isArray(grade.sessionScores) && grade.sessionScores.length >= sessionNum) {
             const val = Number(grade.sessionScores[sessionNum - 1]);
             if (!isNaN(val)) {
                 const isGood = val >= 8;
@@ -154,9 +223,10 @@ function GradeManagement() {
                 };
             }
         }
-        const attDoc = attendance.find(a => Number(a.sessionNumber) === sessionNum);
-        if (attDoc) {
-            const rec = attDoc.records?.find(r => String(r.student?._id || r.student) === String(studentId));
+        const safeAttendance = Array.isArray(attendance) ? attendance : [];
+        const attDoc = safeAttendance.find(a => a && Number(a.sessionNumber) === sessionNum);
+        if (attDoc && Array.isArray(attDoc.records)) {
+            const rec = attDoc.records.find(r => r && String(r.student?._id || r.student) === String(studentId));
             if (rec) {
                 if (rec.status === 'present') return { score: 10, label: '100%', tooltip: `Buổi ${sessionNum}: Có mặt (100%)`, status: 'good' };
                 if (rec.status === 'late') return { score: 5, label: '50%', tooltip: `Buổi ${sessionNum}: Đi muộn (50%)`, status: 'warning' };
@@ -305,15 +375,31 @@ function GradeManagement() {
         ? +(editRow.attendanceScore * 0.1 + editRow.midtermScore * 0.3 + editRow.finalScore * 0.6).toFixed(2)
         : null;
 
-    const currentSection = classSections.find(s => s._id === selectedSection);
-    const sectionAppeals = appeals.filter(a => String(a.classSection?._id || a.classSection) === String(selectedSection));
-    const pendingSectionAppeals = sectionAppeals.filter(a => ['pending_teacher', 'teacher_request_unlock', 'admin_unlocked', 'teacher_re_submitted'].includes(a.status));
+    const safeSections = Array.isArray(classSections) ? classSections : [];
+    const safeAppeals = Array.isArray(appeals) ? appeals : [];
+    const safeGrades = Array.isArray(grades) ? grades : [];
 
-    const isSubmitted = grades.length > 0 && grades.some(g => g.submissionStatus === 'submitted');
-    const isPublished = grades.length > 0 && grades.every(g => g.isPublished);
-    const isReSubmitted = grades.length > 0 && grades.some(g => g.submissionStatus === 're_submitted');
-    const isUnlockRequested = grades.length > 0 && grades.some(g => g.unlockStatus === 'requested_unlock');
-    const isUnlockedForEdit = grades.length > 0 && grades.some(g => g.unlockStatus === 'unlocked_for_edit');
+    const currentSection = safeSections.find(s => s && s._id === selectedSection);
+    const sectionAppeals = safeAppeals.filter(a => a && String(a.classSection?._id || a.classSection) === String(selectedSection));
+    const totalPendingAppeals = safeAppeals.filter(a => a && ['pending_teacher', 'teacher_request_unlock', 'admin_unlocked', 'teacher_re_submitted'].includes(a.status));
+    const pendingSectionAppeals = sectionAppeals.filter(a => a && ['pending_teacher', 'teacher_request_unlock', 'admin_unlocked', 'teacher_re_submitted'].includes(a.status));
+
+    const displayedAppeals = (appealsFilterTab === 'current' ? sectionAppeals : safeAppeals).filter(a => {
+        if (!a) return false;
+        if (!appealSearch || !appealSearch.trim()) return true;
+        const q = appealSearch.trim().toLowerCase();
+        const name = String(a.student?.name || '').toLowerCase();
+        const code = String(a.student?.code || '').toLowerCase();
+        const course = String(a.course?.name || '').toLowerCase();
+        const section = String(a.classSection?.sectionCode || '').toLowerCase();
+        return name.includes(q) || code.includes(q) || course.includes(q) || section.includes(q);
+    });
+
+    const isSubmitted = safeGrades.length > 0 && safeGrades.some(g => g && g.submissionStatus === 'submitted');
+    const isPublished = safeGrades.length > 0 && safeGrades.every(g => g && g.isPublished);
+    const isReSubmitted = safeGrades.length > 0 && safeGrades.some(g => g && g.submissionStatus === 're_submitted');
+    const isUnlockRequested = safeGrades.length > 0 && safeGrades.some(g => g && g.unlockStatus === 'requested_unlock');
+    const isUnlockedForEdit = safeGrades.length > 0 && safeGrades.some(g => g && g.unlockStatus === 'unlocked_for_edit');
 
     return (
         <Box>
@@ -354,20 +440,20 @@ function GradeManagement() {
                         </Button>
 
                         {/* Nút xem Đơn Phúc Khảo */}
-                        <Badge badgeContent={pendingSectionAppeals.length} color="error">
+                        <Badge badgeContent={totalPendingAppeals.length} color="error">
                             <Button
                                 variant="outlined"
                                 startIcon={<AppealIcon />}
                                 onClick={() => setOpenAppealsDialog(true)}
                                 sx={{
-                                    borderColor: pendingSectionAppeals.length > 0 ? '#fde68a' : 'rgba(255,255,255,0.4)',
+                                    borderColor: totalPendingAppeals.length > 0 ? '#fde68a' : 'rgba(255,255,255,0.4)',
                                     color: 'white',
-                                    bgcolor: pendingSectionAppeals.length > 0 ? 'rgba(245, 158, 11, 0.25)' : 'transparent',
+                                    bgcolor: totalPendingAppeals.length > 0 ? 'rgba(245, 158, 11, 0.25)' : 'transparent',
                                     fontWeight: 700,
                                     '&:hover': { borderColor: 'white', bgcolor: 'rgba(255,255,255,0.15)' }
                                 }}
                             >
-                                Đơn Phúc Khảo ({sectionAppeals.length})
+                                Đơn Phúc Khảo ({safeAppeals.length > 0 ? (sectionAppeals.length > 0 ? `${sectionAppeals.length} lớp này / ${safeAppeals.length} tổng` : `${safeAppeals.length} đơn`) : 0})
                             </Button>
                         </Badge>
 
@@ -377,7 +463,7 @@ function GradeManagement() {
                                 variant="contained"
                                 startIcon={saving ? <CircularProgress size={16} color="inherit" /> : <SendIcon />}
                                 onClick={handleReSubmitToAdmin}
-                                disabled={saving || grades.length === 0}
+                                disabled={saving || safeGrades.length === 0}
                                 sx={{ bgcolor: '#8b5cf6', '&:hover': { bgcolor: '#7c3aed' }, fontWeight: 700 }}
                             >
                                 Chốt Điểm Phúc Khảo & Gửi Admin
@@ -402,19 +488,19 @@ function GradeManagement() {
                             />
                         ) : isSubmitted ? (
                             <Chip
-                                icon={<HourglassIcon sx={{ fontSize: '15px !important', color: '#fff !important' }} />}
-                                label="Đã gửi Admin kiểm tra & công bố"
-                                sx={{ bgcolor: '#2563eb', color: 'white', fontWeight: 700, px: 1 }}
+                                icon={<LockIcon sx={{ fontSize: '15px !important', color: '#fff !important' }} />}
+                                label="🔒 Đã khóa nhập điểm & Chờ Admin duyệt"
+                                sx={{ bgcolor: '#2563eb', color: 'white', fontWeight: 700, px: 1.5, py: 0.5 }}
                             />
                         ) : (
                             <Button
                                 variant="contained"
-                                startIcon={saving ? <CircularProgress size={16} color="inherit" /> : <SendIcon />}
+                                startIcon={saving ? <CircularProgress size={16} color="inherit" /> : <LockIcon />}
                                 onClick={handleSubmitToAdmin}
-                                disabled={saving || grades.length === 0}
-                                sx={{ bgcolor: '#10B981', '&:hover': { bgcolor: '#059669' }, fontWeight: 700 }}
+                                disabled={saving || safeGrades.length === 0}
+                                sx={{ bgcolor: '#d97706', '&:hover': { bgcolor: '#b45309' }, fontWeight: 700 }}
                             >
-                                Gửi Admin Kiểm Tra & Công Bố
+                                🔒 Khóa Nhập Điểm & Nộp Admin
                             </Button>
                         )}
                     </Stack>
@@ -474,6 +560,16 @@ function GradeManagement() {
             </Paper>
 
             {/* Workflow Alerts */}
+            {!isUnlockedForEdit && !isUnlockRequested && !isReSubmitted && !isSubmitted && !isPublished && safeGrades.length > 0 && (
+                <Alert severity="success" sx={{ mb: 3, borderRadius: 2, bgcolor: alpha('#10B981', 0.08), borderColor: '#a7f3d0' }}>
+                    ✍️ <strong>Lớp học phần đang mở nhập điểm:</strong> Quý Thầy/Cô có thể bấm vào biểu tượng ✏️ ở cột thao tác của từng sinh viên để nhập điểm Chuyên cần, Giữa kỳ, Cuối kỳ và nhận xét. Sau khi hoàn tất, hãy bấm <strong>"🔒 Khóa Nhập Điểm & Nộp Admin"</strong> để khóa bảng điểm và gửi cho Admin kiểm tra.
+                </Alert>
+            )}
+            {isSubmitted && !isPublished && !isUnlockedForEdit && !isUnlockRequested && !isReSubmitted && (
+                <Alert severity="info" sx={{ mb: 3, borderRadius: 2 }}>
+                    🔒 <strong>Bảng điểm đã được khóa và nộp cho Admin kiểm tra:</strong> Không thể chỉnh sửa điểm. Khi sinh viên nộp đơn phúc khảo và Quý Thầy/Cô chuyển đơn lên Admin, Admin phê duyệt mở khóa thì hệ thống mới cho phép sửa điểm.
+                </Alert>
+            )}
             {isUnlockedForEdit && (
                 <Alert severity="warning" sx={{ mb: 3, borderRadius: 2, fontWeight: 600 }}>
                     🔓 <strong>Bảng điểm đã được Admin MỞ KHÓA!</strong> Giảng viên có thể nhấn vào biểu tượng ✏️ ở cột thao tác của từng sinh viên để cập nhật điểm mới theo kết quả phúc khảo. Sau khi hoàn tất, hãy nhấn nút <strong>"Chốt Điểm Phúc Khảo & Gửi Admin"</strong> ở góc trên bên phải để Admin kiểm tra và công bố chính thức.
@@ -573,10 +669,15 @@ function GradeManagement() {
                                 )}
                             </TableHead>
                             <TableBody>
-                                {grades.map((g) => {
+                                {safeGrades.map((g) => {
+                                    if (!g) return null;
                                     const isEditing = editRow?.gradeId === g._id;
-                                    const lc = LETTER_COLORS[g.letterGrade] || {};
-                                    const studentAppeal = sectionAppeals.find(a => String(a.student?._id || a.student) === String(g.student?._id || g.student));
+                                    const lc = (g.letterGrade && LETTER_COLORS[g.letterGrade]) || { bg: '#f1f5f9', color: '#475569', border: '#cbd5e1' };
+                                    const studentAppeal = safeAppeals.find(a => 
+                                        a &&
+                                        String(a.student?._id || a.student) === String(g.student?._id || g.student) &&
+                                        String(a.classSection?._id || a.classSection) === String(selectedSection)
+                                    );
                                     return (
                                         <Fade in key={g._id} timeout={200}>
                                             <TableRow hover sx={{ bgcolor: isEditing ? alpha('#4F46E5', 0.04) : 'transparent', '&:hover': { bgcolor: alpha('#4F46E5', 0.03) } }}>
@@ -585,21 +686,32 @@ function GradeManagement() {
                                                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8, flexWrap: 'wrap' }}>
                                                         <span>{g.student?.name}</span>
                                                         {studentAppeal && (
-                                                            <Tooltip title={`Có phản hồi điểm: "${studentAppeal.reason?.substring(0, 45)}..." — Bấm để trả lời SV`}>
+                                                            <Tooltip title={`Đơn phúc khảo ${studentAppeal.scoreType === 'midterm' ? 'giữa kỳ' : studentAppeal.scoreType === 'final' ? 'cuối kỳ' : 'chuyên cần'}: "${studentAppeal.reason?.substring(0, 45)}..." — Bấm để xem xét & trả lời`}>
                                                                 <Chip
                                                                     size="small"
-                                                                    label={studentAppeal.status === 'teacher_replied' ? '💬 Đã trả lời' : '💬 Có phản hồi'}
-                                                                    color={studentAppeal.status === 'teacher_replied' ? 'info' : 'warning'}
+                                                                    label={
+                                                                        studentAppeal.status === 'pending_teacher' ? '📝 Đơn phúc khảo' :
+                                                                        studentAppeal.status === 'teacher_replied' ? '💬 Đã trả lời' :
+                                                                        studentAppeal.status === 'teacher_request_unlock' ? '📤 Đã gửi Admin' :
+                                                                        studentAppeal.status === 'admin_unlocked' ? '🔓 Admin đã mở' :
+                                                                        studentAppeal.status === 'teacher_rejected' ? '❌ Đã từ chối' : '📝 Đơn phúc khảo'
+                                                                    }
+                                                                    color={
+                                                                        studentAppeal.status === 'pending_teacher' ? 'warning' :
+                                                                        studentAppeal.status === 'teacher_replied' ? 'info' :
+                                                                        studentAppeal.status === 'admin_unlocked' ? 'success' :
+                                                                        studentAppeal.status === 'teacher_rejected' ? 'error' : 'secondary'
+                                                                    }
                                                                     onClick={() => {
                                                                         setChatDialog(studentAppeal);
                                                                         setChatText('');
                                                                     }}
                                                                     sx={{
-                                                                        height: 20,
-                                                                        fontSize: '0.65rem',
+                                                                        height: 22,
+                                                                        fontSize: '0.66rem',
                                                                         fontWeight: 700,
                                                                         cursor: 'pointer',
-                                                                        boxShadow: studentAppeal.status === 'pending_teacher' ? '0 0 8px rgba(245, 158, 11, 0.4)' : 'none'
+                                                                        boxShadow: studentAppeal.status === 'pending_teacher' ? '0 0 8px rgba(245, 158, 11, 0.45)' : 'none'
                                                                     }}
                                                                 />
                                                             </Tooltip>
@@ -736,7 +848,7 @@ function GradeManagement() {
                                                             </Tooltip>
                                                         </Stack>
                                                     ) : isUnlockedForEdit ? (
-                                                        <Tooltip title="Bảng điểm đã mở khóa: Bấm để sửa điểm phúc khảo cho sinh viên này">
+                                                        <Tooltip title="Bảng điểm đã được Admin mở khóa: Bấm để sửa điểm phúc khảo cho sinh viên này">
                                                             <IconButton
                                                                 color="warning"
                                                                 size="small"
@@ -746,8 +858,23 @@ function GradeManagement() {
                                                                 <EditIcon fontSize="small" />
                                                             </IconButton>
                                                         </Tooltip>
+                                                    ) : (!g.isLocked && !isSubmitted && !isPublished && !isReSubmitted && !isUnlockRequested) ? (
+                                                        <Tooltip title="Lớp đang mở: Bấm để nhập / chỉnh sửa điểm số cho sinh viên này">
+                                                            <IconButton
+                                                                color="primary"
+                                                                size="small"
+                                                                onClick={() => handleEditStart(g)}
+                                                                sx={{ bgcolor: alpha('#4f46e5', 0.1), '&:hover': { bgcolor: alpha('#4f46e5', 0.2) } }}
+                                                            >
+                                                                <EditIcon fontSize="small" />
+                                                            </IconButton>
+                                                        </Tooltip>
                                                     ) : (
-                                                        <Tooltip title="Điểm đã nhập vào hệ thống và được khóa theo quy chế, không thể chỉnh sửa">
+                                                        <Tooltip title={
+                                                            isPublished ? "Bảng điểm đã được công bố chính thức. Khi sinh viên phúc khảo và Admin duyệt mở khóa mới có thể sửa." :
+                                                            isUnlockRequested ? "Bảng điểm đang chờ Admin duyệt mở khóa." :
+                                                            "Bảng điểm đã bị khóa và nộp Admin. Không thể chỉnh sửa."
+                                                        }>
                                                             <Typography fontSize="0.75rem" color="error.main" fontWeight={700} sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5 }}>
                                                                 <LockIcon sx={{ fontSize: 13 }} /> Đã khóa
                                                             </Typography>
@@ -758,7 +885,7 @@ function GradeManagement() {
                                         </Fade>
                                     );
                                 })}
-                                {grades.length === 0 && (
+                                {safeGrades.length === 0 && (
                                     <TableRow>
                                         <TableCell colSpan={showDailyAttendance ? 24 : 10} sx={{ textAlign: 'center', py: 6, color: 'text.secondary' }}>
                                             <SchoolIcon sx={{ fontSize: 48, mb: 1, color: 'text.disabled' }} />
@@ -772,204 +899,347 @@ function GradeManagement() {
                 </Paper>
             )}
 
-            {/* Dialog Xem danh sách Phúc khảo của lớp */}
-            <Dialog open={openAppealsDialog} onClose={() => setOpenAppealsDialog(false)} maxWidth="md" fullWidth PaperProps={{ sx: { borderRadius: 3 } }}>
-                <DialogTitle sx={{ fontWeight: 800, display: 'flex', alignItems: 'center', gap: 1, bgcolor: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
-                    <AppealIcon color="primary" /> Danh Sách Đơn Phúc Khảo Lớp Học Phần
+            {/* Dialog Xem danh sách Phúc khảo */}
+            <Dialog open={openAppealsDialog} onClose={() => setOpenAppealsDialog(false)} maxWidth="lg" fullWidth PaperProps={{ sx: { borderRadius: 3 } }}>
+                <DialogTitle sx={{ fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'space-between', bgcolor: '#f8fafc', borderBottom: '1px solid #e2e8f0', py: 2 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                        <AppealIcon sx={{ color: '#4f46e5', fontSize: 28 }} />
+                        <Box>
+                            <Typography variant="h6" fontWeight={800} color="#1e1b4b">
+                                Danh Sách Đơn Phúc Khảo Điểm Số
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                                Xem xét đơn phúc khảo từ sinh viên, trao đổi trực tiếp hoặc gửi ý kiến đề xuất lên Admin
+                            </Typography>
+                        </Box>
+                    </Box>
+                    <Chip
+                        label={`${totalPendingAppeals.length} đơn cần xử lý`}
+                        color={totalPendingAppeals.length > 0 ? 'warning' : 'default'}
+                        sx={{ fontWeight: 700 }}
+                    />
                 </DialogTitle>
                 <DialogContent sx={{ mt: 2 }}>
-                    {sectionAppeals.length === 0 ? (
-                        <Box sx={{ py: 5, textAlign: 'center', color: 'text.secondary' }}>
-                            <Typography>Hiện tại không có đơn phúc khảo nào cho lớp này.</Typography>
+                    {/* Bộ lọc Tab và Ô tìm kiếm */}
+                    <Stack direction="row" spacing={1.5} alignItems="center" justifyContent="space-between" flexWrap="wrap" sx={{ mb: 2.5, pb: 1.5, borderBottom: '1px solid #e2e8f0' }} gap={1.5}>
+                        <Stack direction="row" spacing={1}>
+                            <Button
+                                size="small"
+                                variant={appealsFilterTab === 'all' ? 'contained' : 'outlined'}
+                                onClick={() => setAppealsFilterTab('all')}
+                                sx={{
+                                    fontWeight: 700, borderRadius: 2, textTransform: 'none',
+                                    bgcolor: appealsFilterTab === 'all' ? '#4f46e5' : 'transparent',
+                                    color: appealsFilterTab === 'all' ? '#fff' : '#4f46e5'
+                                }}
+                            >
+                                Tất cả đơn ({safeAppeals.length})
+                            </Button>
+                            <Button
+                                size="small"
+                                variant={appealsFilterTab === 'current' ? 'contained' : 'outlined'}
+                                onClick={() => setAppealsFilterTab('current')}
+                                sx={{
+                                    fontWeight: 700, borderRadius: 2, textTransform: 'none',
+                                    bgcolor: appealsFilterTab === 'current' ? '#4f46e5' : 'transparent',
+                                    color: appealsFilterTab === 'current' ? '#fff' : '#4f46e5'
+                                }}
+                            >
+                                Lớp hiện tại: {currentSection?.sectionCode || 'Chưa chọn'} ({sectionAppeals.length})
+                            </Button>
+                        </Stack>
+                        <TextField
+                            size="small"
+                            placeholder="Tìm tên SV, MSSV, môn học..."
+                            value={appealSearch}
+                            onChange={(e) => setAppealSearch(e.target.value)}
+                            sx={{ minWidth: 260, '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                        />
+                    </Stack>
+
+                    {appealsFilterTab === 'current' && sectionAppeals.length === 0 && safeAppeals.length > 0 && (
+                        <Alert severity="info" sx={{ mb: 2, borderRadius: 2 }}>
+                            Lớp học phần <strong>{currentSection?.sectionCode}</strong> hiện tại chưa có đơn phúc khảo nào.
+                            Tuy nhiên Thầy/Cô có <strong>{safeAppeals.length} đơn phúc khảo</strong> ở các lớp khác.
+                            <Button
+                                size="small"
+                                onClick={() => setAppealsFilterTab('all')}
+                                sx={{ fontWeight: 700, ml: 1, textTransform: 'none' }}
+                            >
+                                👉 Bấm để xem tất cả đơn
+                            </Button>
+                        </Alert>
+                    )}
+
+                    {displayedAppeals.length === 0 ? (
+                        <Box sx={{ py: 6, textAlign: 'center', color: 'text.secondary' }}>
+                            <AppealIcon sx={{ fontSize: 48, color: '#cbd5e1', mb: 1 }} />
+                            <Typography fontWeight={600}>Không có đơn phúc khảo nào phù hợp.</Typography>
+                            <Typography variant="caption">Khi sinh viên nộp đơn phúc khảo điểm, thông tin người gửi và nội dung sẽ hiển thị tại đây.</Typography>
                         </Box>
                     ) : (
                         <TableContainer component={Paper} elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 2 }}>
                             <Table size="small">
-                                <TableHead sx={{ bgcolor: '#f1f5f9' }}>
+                                <TableHead sx={{ bgcolor: '#f8fafc' }}>
                                     <TableRow>
-                                        <TableCell sx={{ fontWeight: 700 }}>Sinh viên</TableCell>
+                                        <TableCell sx={{ fontWeight: 700 }}>Người gửi (Sinh viên)</TableCell>
+                                        <TableCell sx={{ fontWeight: 700 }}>Học phần / Lớp</TableCell>
                                         <TableCell sx={{ fontWeight: 700 }}>Mục điểm</TableCell>
-                                        <TableCell align="center" sx={{ fontWeight: 700 }}>Điểm hiện tại</TableCell>
-                                        <TableCell sx={{ fontWeight: 700 }}>Lý do phản hồi</TableCell>
+                                        <TableCell align="center" sx={{ fontWeight: 700 }}>Điểm số</TableCell>
+                                        <TableCell sx={{ fontWeight: 700 }}>Lý do & Ghi chú</TableCell>
                                         <TableCell align="center" sx={{ fontWeight: 700 }}>Trạng thái</TableCell>
                                         <TableCell align="center" sx={{ fontWeight: 700 }}>Thao tác</TableCell>
                                         <TableCell align="center" sx={{ fontWeight: 700 }}>Hội thoại</TableCell>
                                     </TableRow>
                                 </TableHead>
                                 <TableBody>
-                                    {sectionAppeals.map(appeal => (
-                                        <TableRow key={appeal._id} hover>
-                                            <TableCell>
-                                                <Typography fontWeight={700} fontSize="0.85rem">{appeal.student?.name}</Typography>
-                                                <Typography variant="caption" color="text.secondary">{appeal.student?.code}</Typography>
-                                            </TableCell>
-                                            <TableCell>
-                                                <Chip 
-                                                    size="small"
-                                                    label={appeal.scoreType === 'midterm' ? 'Giữa kỳ' : appeal.scoreType === 'final' ? 'Cuối kỳ' : 'Chuyên cần'}
-                                                    color={appeal.scoreType === 'final' ? 'primary' : 'secondary'}
-                                                    sx={{ fontWeight: 700 }}
-                                                />
-                                            </TableCell>
-                                            <TableCell align="center">
-                                                <Typography fontWeight={800} color="primary.main">{appeal.oldScore}</Typography>
-                                            </TableCell>
-                                            <TableCell sx={{ maxWidth: 220 }}>
-                                                <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: '0.82rem' }}>
-                                                    {appeal.reason}
-                                                </Typography>
-                                            </TableCell>
-                                            <TableCell align="center">
-                                                {appeal.status === 'pending_teacher' && (
-                                                    <Chip size="small" label="Chờ GV xử lý" color="warning" sx={{ fontWeight: 600 }} />
-                                                )}
-                                                {appeal.status === 'teacher_replied' && (
-                                                    <Chip size="small" label="💬 GV đã trả lời SV" sx={{ bgcolor: '#0284c7', color: '#fff', fontWeight: 600 }} />
-                                                )}
-                                                {appeal.status === 'teacher_request_unlock' && (
-                                                    <Chip size="small" label="📤 Đã gửi Admin xem xét" sx={{ bgcolor: '#d97706', color: '#fff', fontWeight: 600 }} />
-                                                )}
-                                                {appeal.status === 'admin_unlocked' && (
-                                                    <Chip size="small" label="Admin đã mở khóa - GV đang chấm lại" color="info" sx={{ fontWeight: 600 }} />
-                                                )}
-                                                {appeal.status === 'teacher_re_submitted' && (
-                                                    <Chip size="small" label="Đã nộp lại - Chờ Admin công bố" sx={{ bgcolor: '#8b5cf6', color: '#fff', fontWeight: 600 }} />
-                                                )}
-                                                {appeal.status === 'admin_approved_published' && (
-                                                    <Chip size="small" label="Đã công bố điểm mới" color="success" sx={{ fontWeight: 600 }} />
-                                                )}
-                                                {appeal.status === 'teacher_rejected' && (
-                                                    <Chip size="small" label="GV từ chối - Giữ điểm" color="error" sx={{ fontWeight: 600 }} />
-                                                )}
-                                            </TableCell>
-                                            <TableCell align="center">
-                                                {appeal.status === 'pending_teacher' && (
-                                                    <Stack direction="column" spacing={0.8} alignItems="center">
-                                                        <Stack direction="row" spacing={0.8}>
+                                    {displayedAppeals.map(appeal => {
+                                        const isCurrent = String(appeal.classSection?._id || appeal.classSection) === String(selectedSection);
+                                        return (
+                                            <TableRow key={appeal._id} hover sx={{ '&:last-child td': { border: 0 } }}>
+                                                {/* Người gửi (Sinh viên) */}
+                                                <TableCell sx={{ minWidth: 180 }}>
+                                                    <Stack direction="row" spacing={1.2} alignItems="center">
+                                                        <Avatar
+                                                            src={appeal.student?.avatar}
+                                                            alt={appeal.student?.name}
+                                                            sx={{ width: 34, height: 34, bgcolor: '#6366f1', fontSize: '0.85rem', fontWeight: 700 }}
+                                                        >
+                                                            {String(appeal.student?.name || 'S').charAt(0).toUpperCase()}
+                                                        </Avatar>
+                                                        <Box>
+                                                            <Typography fontWeight={700} fontSize="0.88rem" color="#1e293b">
+                                                                {appeal.student?.name || 'Chưa cập nhật tên'}
+                                                            </Typography>
+                                                            <Stack direction="row" spacing={0.6} alignItems="center" flexWrap="wrap">
+                                                                <Chip
+                                                                    size="small"
+                                                                    label={appeal.student?.code || 'MSSV'}
+                                                                    sx={{ height: 18, fontSize: '0.65rem', fontWeight: 700, bgcolor: '#f1f5f9' }}
+                                                                />
+                                                                {appeal.student?.classCode && (
+                                                                    <Typography variant="caption" color="text.secondary" fontSize="0.72rem">
+                                                                        {appeal.student.classCode}
+                                                                    </Typography>
+                                                                )}
+                                                            </Stack>
+                                                            {appeal.student?.email && (
+                                                                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontSize: '0.7rem' }}>
+                                                                    {appeal.student.email}
+                                                                </Typography>
+                                                            )}
+                                                        </Box>
+                                                    </Stack>
+                                                </TableCell>
+
+                                                {/* Học phần & Lớp */}
+                                                <TableCell sx={{ minWidth: 150 }}>
+                                                    <Typography fontWeight={700} fontSize="0.84rem" color="#334155">
+                                                        {appeal.course?.name || 'Môn học'}
+                                                    </Typography>
+                                                    <Stack direction="row" spacing={0.8} alignItems="center" mt={0.3}>
+                                                        <Chip
+                                                            size="small"
+                                                            label={`Lớp: ${appeal.classSection?.sectionCode || '—'}`}
+                                                            color="primary"
+                                                            variant="outlined"
+                                                            sx={{ height: 19, fontSize: '0.68rem', fontWeight: 600 }}
+                                                        />
+                                                        {!isCurrent && (
+                                                            <Tooltip title="Chuyển sang bảng điểm lớp học phần này">
+                                                                <Button
+                                                                    size="small"
+                                                                    onClick={() => {
+                                                                        setSelectedSection(appeal.classSection?._id || appeal.classSection);
+                                                                        setOpenAppealsDialog(false);
+                                                                    }}
+                                                                    sx={{ fontSize: '0.68rem', p: '1px 6px', minWidth: 'unset', textTransform: 'none', fontWeight: 600 }}
+                                                                >
+                                                                    👉 Mở lớp
+                                                                </Button>
+                                                            </Tooltip>
+                                                        )}
+                                                    </Stack>
+                                                </TableCell>
+
+                                                {/* Mục điểm */}
+                                                <TableCell sx={{ minWidth: 100 }}>
+                                                    <Chip
+                                                        size="small"
+                                                        label={appeal.scoreType === 'midterm' ? 'Giữa kỳ (30%)' : appeal.scoreType === 'final' ? 'Cuối kỳ (60%)' : 'Chuyên cần (10%)'}
+                                                        color={appeal.scoreType === 'final' ? 'primary' : appeal.scoreType === 'midterm' ? 'secondary' : 'default'}
+                                                        sx={{ fontWeight: 700, fontSize: '0.72rem' }}
+                                                    />
+                                                </TableCell>
+
+                                                {/* Điểm số */}
+                                                <TableCell align="center" sx={{ minWidth: 110 }}>
+                                                    <Box>
+                                                        <Typography fontWeight={800} fontSize="0.95rem" color="error.main">
+                                                            {appeal.oldScore} đ
+                                                        </Typography>
+                                                        {appeal.proposedScore !== null && appeal.proposedScore !== undefined ? (
+                                                            <Typography variant="caption" sx={{ color: '#16a34a', fontWeight: 700, display: 'block' }}>
+                                                                ➜ SV muốn: {appeal.proposedScore} đ
+                                                            </Typography>
+                                                        ) : (
+                                                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                                                                (Điểm ban đầu)
+                                                            </Typography>
+                                                        )}
+                                                    </Box>
+                                                </TableCell>
+
+                                                {/* Lý do & Ghi chú */}
+                                                <TableCell sx={{ maxWidth: 220, minWidth: 160 }}>
+                                                    <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: '0.8rem', color: '#1e293b' }}>
+                                                        {appeal.reason}
+                                                    </Typography>
+                                                    {appeal.studentNote && (
+                                                        <Typography variant="caption" sx={{ display: 'block', color: '#64748b', fontStyle: 'italic', mt: 0.5 }}>
+                                                            Ghi chú: {appeal.studentNote}
+                                                        </Typography>
+                                                    )}
+                                                </TableCell>
+
+                                                {/* Trạng thái */}
+                                                <TableCell align="center" sx={{ minWidth: 140 }}>
+                                                    {appeal.status === 'pending_teacher' && (
+                                                        <Chip size="small" label="⏳ Chờ GV xem xét" color="warning" sx={{ fontWeight: 700, fontSize: '0.7rem' }} />
+                                                    )}
+                                                    {appeal.status === 'teacher_replied' && (
+                                                        <Chip size="small" label="💬 GV đã trao đổi" sx={{ bgcolor: '#0284c7', color: '#fff', fontWeight: 700, fontSize: '0.7rem' }} />
+                                                    )}
+                                                    {appeal.status === 'teacher_request_unlock' && (
+                                                        <Chip size="small" label="📤 Đã gửi Admin duyệt" sx={{ bgcolor: '#d97706', color: '#fff', fontWeight: 700, fontSize: '0.7rem' }} />
+                                                    )}
+                                                    {appeal.status === 'admin_unlocked' && (
+                                                        <Chip size="small" label="🔓 Admin đã mở khóa" color="info" sx={{ fontWeight: 700, fontSize: '0.7rem' }} />
+                                                    )}
+                                                    {appeal.status === 'teacher_re_submitted' && (
+                                                        <Chip size="small" label="⏳ Đã nộp - Chờ duyệt" sx={{ bgcolor: '#8b5cf6', color: '#fff', fontWeight: 700, fontSize: '0.7rem' }} />
+                                                    )}
+                                                    {appeal.status === 'admin_approved_published' && (
+                                                        <Chip size="small" label="✅ Đã chốt điểm mới" color="success" sx={{ fontWeight: 700, fontSize: '0.7rem' }} />
+                                                    )}
+                                                    {appeal.status === 'teacher_rejected' && (
+                                                        <Chip size="small" label="❌ GV từ chối - Giữ điểm" color="error" sx={{ fontWeight: 700, fontSize: '0.7rem' }} />
+                                                    )}
+                                                </TableCell>
+
+                                                {/* Thao tác */}
+                                                <TableCell align="center" sx={{ minWidth: 150 }}>
+                                                    {['pending_teacher', 'teacher_replied'].includes(appeal.status) && (
+                                                        <Stack direction="column" spacing={0.6} alignItems="center">
+                                                            <Stack direction="row" spacing={0.6}>
+                                                                <Button
+                                                                    size="small"
+                                                                    variant="contained"
+                                                                    sx={{ textTransform: 'none', fontWeight: 700, fontSize: '0.7rem', bgcolor: '#4f46e5', p: '2px 8px' }}
+                                                                    onClick={() => {
+                                                                        setChatDialog(appeal);
+                                                                        setChatText('');
+                                                                    }}
+                                                                >
+                                                                    💬 Trả lời SV
+                                                                </Button>
+                                                                <Button
+                                                                    size="small"
+                                                                    variant="outlined"
+                                                                    color="error"
+                                                                    sx={{ textTransform: 'none', fontWeight: 600, fontSize: '0.7rem', p: '2px 6px' }}
+                                                                    onClick={() => {
+                                                                        setRejectAppealDialog(appeal);
+                                                                        setRejectFeedbackText('');
+                                                                    }}
+                                                                >
+                                                                    ❌ Giữ điểm
+                                                                </Button>
+                                                            </Stack>
                                                             <Button
                                                                 size="small"
                                                                 variant="contained"
-                                                                color="primary"
-                                                                sx={{ textTransform: 'none', fontWeight: 700, fontSize: '0.72rem', bgcolor: '#4f46e5' }}
+                                                                sx={{ textTransform: 'none', fontWeight: 700, fontSize: '0.7rem', bgcolor: '#f59e0b', '&:hover': { bgcolor: '#d97706' }, width: '100%', p: '2px 6px' }}
                                                                 onClick={() => {
-                                                                    setChatDialog(appeal);
-                                                                    setChatText('');
+                                                                    setForwardToAdminDialog(appeal);
+                                                                    setForwardToAdminText(`Giảng viên đã xem xét đơn phúc khảo ${appeal.scoreType === 'midterm' ? 'giữa kỳ' : appeal.scoreType === 'final' ? 'cuối kỳ' : 'chuyên cần'} của SV ${appeal.student?.name} (${appeal.student?.code}). Đề xuất Admin mở khóa bảng điểm để giảng viên kiểm tra & chấm lại bài thi.`);
                                                                 }}
                                                             >
-                                                                💬 Trả lời SV
+                                                                📤 Gửi Admin Xin Mở Khóa
                                                             </Button>
+                                                        </Stack>
+                                                    )}
+                                                    {appeal.status === 'teacher_rejected' && (
+                                                        <Stack direction="column" spacing={0.6} alignItems="center">
+                                                            <Typography variant="caption" color="error.main" fontWeight={700}>Đã từ chối</Typography>
                                                             <Button
                                                                 size="small"
                                                                 variant="outlined"
-                                                                color="error"
-                                                                sx={{ textTransform: 'none', fontWeight: 600, fontSize: '0.72rem' }}
+                                                                sx={{ textTransform: 'none', fontWeight: 600, fontSize: '0.68rem', color: '#d97706', borderColor: '#d97706', p: '1px 6px' }}
                                                                 onClick={() => {
-                                                                    setRejectAppealDialog(appeal);
-                                                                    setRejectFeedbackText('');
+                                                                    setForwardToAdminDialog(appeal);
+                                                                    setForwardToAdminText(appeal.teacherFeedback || '');
                                                                 }}
                                                             >
-                                                                ❌ Từ chối
+                                                                📤 Vẫn gửi Admin xem
                                                             </Button>
                                                         </Stack>
+                                                    )}
+                                                    {appeal.status === 'admin_unlocked' && (
                                                         <Button
                                                             size="small"
                                                             variant="contained"
-                                                            sx={{ textTransform: 'none', fontWeight: 700, fontSize: '0.72rem', bgcolor: '#f59e0b', '&:hover': { bgcolor: '#d97706' }, width: '100%' }}
+                                                            color="success"
                                                             onClick={() => {
-                                                                setForwardToAdminDialog(appeal);
-                                                                setForwardToAdminText(`Giảng viên đã xem xét đơn phúc khảo ${appeal.scoreType === 'midterm' ? 'giữa kỳ' : appeal.scoreType === 'final' ? 'cuối kỳ' : 'chuyên cần'} của SV ${appeal.student?.name} (${appeal.student?.code}).`);
+                                                                setSelectedSection(appeal.classSection?._id || appeal.classSection);
+                                                                setOpenAppealsDialog(false);
                                                             }}
+                                                            sx={{ textTransform: 'none', fontWeight: 700, fontSize: '0.7rem' }}
                                                         >
-                                                            📤 Gửi ý kiến lên Admin
+                                                            👉 Nhập điểm lại ngay
                                                         </Button>
-                                                    </Stack>
-                                                )}
-                                                {appeal.status === 'teacher_replied' && (
-                                                    <Stack direction="column" spacing={0.8} alignItems="center">
+                                                    )}
+                                                    {appeal.status === 'teacher_request_unlock' && (
+                                                        <Typography variant="caption" color="#d97706" fontWeight={700}>
+                                                            ⏳ Chờ Admin xem xét
+                                                        </Typography>
+                                                    )}
+                                                    {['teacher_re_submitted', 'admin_approved_published'].includes(appeal.status) && (
+                                                        <Typography variant="caption" color="text.secondary">✓ Hoàn tất</Typography>
+                                                    )}
+                                                </TableCell>
+
+                                                {/* Nút Hội Thoại */}
+                                                <TableCell align="center" sx={{ width: 90 }}>
+                                                    <Tooltip title="Xem chi tiết & gửi tin nhắn trao đổi với sinh viên">
                                                         <Button
                                                             size="small"
-                                                            variant="contained"
-                                                            sx={{ textTransform: 'none', fontWeight: 700, fontSize: '0.72rem', bgcolor: '#0284c7', '&:hover': { bgcolor: '#0369a1' }, width: '100%' }}
+                                                            variant="outlined"
                                                             onClick={() => {
                                                                 setChatDialog(appeal);
                                                                 setChatText('');
                                                             }}
-                                                        >
-                                                            💬 Tiếp tục trả lời SV
-                                                        </Button>
-                                                        <Button
-                                                            size="small"
-                                                            variant="contained"
-                                                            sx={{ textTransform: 'none', fontWeight: 700, fontSize: '0.72rem', bgcolor: '#f59e0b', '&:hover': { bgcolor: '#d97706' }, width: '100%' }}
-                                                            onClick={() => {
-                                                                setForwardToAdminDialog(appeal);
-                                                                setForwardToAdminText(appeal.teacherFeedback || '');
+                                                            sx={{
+                                                                textTransform: 'none', fontSize: '0.72rem', fontWeight: 700,
+                                                                borderColor: '#6366f1', color: '#4f46e5',
+                                                                '&:hover': { bgcolor: '#eef2ff', borderColor: '#4f46e5' },
+                                                                minWidth: 'unset', px: 1
                                                             }}
                                                         >
-                                                            📤 Gửi ý kiến lên Admin
+                                                            💬 {appeal.messages?.length > 0 ? `Chat (${appeal.messages.length})` : 'Chat'}
                                                         </Button>
-                                                    </Stack>
-                                                )}
-                                                {appeal.status === 'teacher_rejected' && (
-                                                    <Stack direction="column" spacing={0.8} alignItems="center">
-                                                        <Typography variant="caption" color="error.main" fontWeight={700} sx={{ display: 'block', mb: 0.5 }}>Đã từ chối</Typography>
-                                                        <Button
-                                                            size="small"
-                                                            variant="outlined"
-                                                            sx={{ textTransform: 'none', fontWeight: 600, fontSize: '0.72rem', color: '#d97706', borderColor: '#d97706' }}
-                                                            onClick={() => {
-                                                                setForwardToAdminDialog(appeal);
-                                                                setForwardToAdminText(appeal.teacherFeedback || '');
-                                                            }}
-                                                        >
-                                                            📤 Vẫn muốn gửi Admin xem
-                                                        </Button>
-                                                    </Stack>
-                                                )}
-                                                {appeal.status === 'admin_unlocked' && (
-                                                    <Typography variant="caption" color="success.main" fontWeight={700}>
-                                                        👉 Sửa trực tiếp ở bảng điểm
-                                                    </Typography>
-                                                )}
-                                                {appeal.status === 'teacher_request_unlock' && (
-                                                    <Typography variant="caption" color="#d97706" fontWeight={700}>
-                                                        ⏳ Chờ Admin xem xét
-                                                    </Typography>
-                                                )}
-                                                {['teacher_re_submitted', 'admin_approved_published'].includes(appeal.status) && (
-                                                    <Typography variant="caption" color="text.secondary">✓ Hoàn tất</Typography>
-                                                )}
-                                            </TableCell>
-                                            {/* Nút Hội Thoại - luôn hiển thị */}
-                                            <TableCell align="center" sx={{ width: 100 }}>
-                                                <Tooltip title="Xem & gửi tin nhắn trao đổi với sinh viên">
-                                                    <Button
-                                                        size="small"
-                                                        variant="outlined"
-                                                        onClick={() => {
-                                                            setChatDialog(appeal);
-                                                            setChatText('');
-                                                        }}
-                                                        sx={{
-                                                            textTransform: 'none', fontSize: '0.72rem', fontWeight: 700,
-                                                            borderColor: '#6366f1', color: '#4f46e5',
-                                                            '&:hover': { bgcolor: '#eef2ff', borderColor: '#4f46e5' },
-                                                            minWidth: 'unset', px: 1.2
-                                                        }}
-                                                    >
-                                                        💬 {appeal.messages?.length > 0 ? `Chat (${appeal.messages.length})` : 'Mở chat'}
-                                                    </Button>
-                                                </Tooltip>
-                                            </TableCell>
-                                        </TableRow>
-                                    ))}
+                                                    </Tooltip>
+                                                </TableCell>
+                                            </TableRow>
+                                        );
+                                    })}
                                 </TableBody>
                             </Table>
                         </TableContainer>
                     )}
                 </DialogContent>
                 <DialogActions sx={{ p: 2 }}>
-                    <Button onClick={() => setOpenAppealsDialog(false)} color="inherit">Đóng</Button>
+                    <Button onClick={() => setOpenAppealsDialog(false)} color="inherit" sx={{ fontWeight: 600 }}>Đóng</Button>
                 </DialogActions>
             </Dialog>
 
@@ -1078,12 +1348,12 @@ function GradeManagement() {
             {/* Dialog Gửi Ý Kiến Phúc Khảo Lên Admin */}
             <Dialog open={!!forwardToAdminDialog} onClose={() => setForwardToAdminDialog(null)} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: 3 } }}>
                 <DialogTitle sx={{ fontWeight: 800, display: 'flex', alignItems: 'center', gap: 1, bgcolor: '#fffbeb', borderBottom: '1px solid #fde68a' }}>
-                    📤 Gửi Ý Kiến Phản Hồi Phúc Khảo Lên Admin
+                    📤 Gửi Ý Kiến & Đề Xuất Admin Mở Khóa Chấm Lại
                 </DialogTitle>
                 <DialogContent sx={{ mt: 2 }}>
                     <Alert severity="info" sx={{ mb: 2, borderRadius: 2 }}>
-                        Ý kiến của bạn sẽ được gửi trực tiếp đến Admin (Ban Đào Tạo / Khảo Thí) kèm theo đơn phúc khảo này.
-                        Admin sẽ xem xét và quyết định có mở khóa bảng điểm để chỉnh sửa không.
+                        Ý kiến thẩm định của Thầy/Cô sẽ được chuyển trực tiếp đến Ban Quản Lý (Admin).
+                        Admin sẽ phê duyệt mở khóa bảng điểm để Thầy/Cô chấm lại và cập nhật điểm phúc khảo cho sinh viên.
                     </Alert>
                     <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
                         Sinh viên: <strong>{forwardToAdminDialog?.student?.name}</strong> ({forwardToAdminDialog?.student?.code})
@@ -1091,9 +1361,22 @@ function GradeManagement() {
                     <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
                         Môn học: <strong>{forwardToAdminDialog?.course?.name}</strong> — Mục điểm: <strong>{forwardToAdminDialog?.scoreType === 'midterm' ? 'Giữa kỳ (30%)' : forwardToAdminDialog?.scoreType === 'final' ? 'Cuối kỳ (60%)' : 'Chuyên cần (10%)'}</strong>
                     </Typography>
+                    <Typography variant="body2" sx={{ mb: 1 }}>
+                        Điểm ban đầu: <strong style={{ color: '#dc2626' }}>{forwardToAdminDialog?.oldScore}đ</strong>
+                        {forwardToAdminDialog?.proposedScore !== null && forwardToAdminDialog?.proposedScore !== undefined && (
+                            <span style={{ color: '#4f46e5', marginLeft: 8 }}>
+                                (SV tự đánh giá / mong muốn: <strong>{forwardToAdminDialog.proposedScore}đ</strong>)
+                            </span>
+                        )}
+                    </Typography>
                     {forwardToAdminDialog?.reason && (
                         <Typography variant="body2" sx={{ mb: 2, p: 1.5, bgcolor: '#f8fafc', borderRadius: 2, border: '1px solid #e2e8f0', fontSize: '0.82rem' }}>
                             <strong>Lý do của SV:</strong> {forwardToAdminDialog.reason}
+                            {forwardToAdminDialog.studentNote && (
+                                <span style={{ display: 'block', marginTop: 4, fontStyle: 'italic', color: '#64748b' }}>
+                                    Ghi chú thêm: {forwardToAdminDialog.studentNote}
+                                </span>
+                            )}
                         </Typography>
                     )}
                     <TextField
@@ -1104,7 +1387,7 @@ function GradeManagement() {
                         label="Ý kiến / Nhận xét của Giảng viên gửi Admin *"
                         value={forwardToAdminText}
                         onChange={(e) => setForwardToAdminText(e.target.value)}
-                        placeholder="Ví dụ: Giảng viên đã xem xét bài thi của sinh viên này. Điểm chấm hiện tại đúng theo barem. Tuy nhiên, giảng viên đề xuất Admin kiểm tra lại vì bài nộp có khả năng bị lỗi hệ thống..."
+                        placeholder="Ví dụ: Giảng viên đã xem xét bài thi của sinh viên này. Đề xuất Admin mở khóa bảng điểm để giảng viên kiểm tra & chấm lại bài thi..."
                     />
                 </DialogContent>
                 <DialogActions sx={{ p: 2, gap: 1 }}>
@@ -1116,7 +1399,7 @@ function GradeManagement() {
                         startIcon={saving ? <CircularProgress size={16} color="inherit" /> : <SendIcon />}
                         sx={{ fontWeight: 700, bgcolor: '#f59e0b', '&:hover': { bgcolor: '#d97706' } }}
                     >
-                        {saving ? 'Đang gửi...' : 'Gửi Ý Kiến Lên Admin'}
+                        {saving ? 'Đang gửi...' : 'Gửi Admin Xin Mở Khóa'}
                     </Button>
                 </DialogActions>
             </Dialog>
@@ -1124,22 +1407,32 @@ function GradeManagement() {
             {/* Dialog Hội Thoại Chat với Sinh Viên */}
             <Dialog open={!!chatDialog} onClose={() => setChatDialog(null)} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: 3, height: '80vh', display: 'flex', flexDirection: 'column' } }}>
                 <DialogTitle sx={{ fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'space-between', bgcolor: '#f0f9ff', borderBottom: '1px solid #bae6fd', py: 1.5 }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <span style={{ fontSize: 22 }}>💬</span>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.2 }}>
+                        <Avatar
+                            src={chatDialog?.student?.avatar}
+                            alt={chatDialog?.student?.name}
+                            sx={{ width: 36, height: 36, bgcolor: '#4f46e5', fontSize: '0.9rem', fontWeight: 700 }}
+                        >
+                            {String(chatDialog?.student?.name || 'S').charAt(0).toUpperCase()}
+                        </Avatar>
                         <Box>
-                            <Typography fontWeight={800} fontSize="0.95rem">Hội thoại Phản Hồi Điểm Số</Typography>
+                            <Typography fontWeight={800} fontSize="0.95rem" color="#1e1b4b">
+                                Phúc Khảo Điểm: {chatDialog?.student?.name || 'Sinh viên'}
+                            </Typography>
                             <Typography fontSize="0.75rem" color="text.secondary">
-                                SV: <strong>{chatDialog?.student?.name}</strong> ({chatDialog?.student?.code}) — Môn: <strong>{chatDialog?.course?.name}</strong>
+                                MSSV: <strong>{chatDialog?.student?.code || '—'}</strong>
+                                {chatDialog?.student?.classCode && ` • Lớp: ${chatDialog.student.classCode}`}
+                                {chatDialog?.course?.name && ` • Môn: ${chatDialog.course.name}`}
                             </Typography>
                         </Box>
                     </Box>
                     <Chip
                         size="small"
                         label={{
-                            'pending_teacher': 'Chờ GV trả lời',
+                            'pending_teacher': 'Chờ GV xem xét',
                             'teacher_replied': 'GV đã trả lời',
                             'teacher_rejected': 'Đã từ chối',
-                            'teacher_request_unlock': 'Chờ Admin mở khóa',
+                            'teacher_request_unlock': 'Chờ Admin duyệt',
                             'admin_unlocked': 'Admin đã mở khóa',
                             'teacher_re_submitted': 'Chờ Admin công bố',
                             'admin_approved_published': 'Đã hoàn tất'
@@ -1232,17 +1525,16 @@ function GradeManagement() {
                     <Box sx={{ display: 'flex', gap: 1 }}>
                         <Button
                             size="small"
-                            variant="outlined"
-                            color="warning"
-                            sx={{ textTransform: 'none', fontWeight: 600, fontSize: '0.75rem' }}
+                            variant="contained"
+                            sx={{ textTransform: 'none', fontWeight: 700, fontSize: '0.75rem', bgcolor: '#f59e0b', '&:hover': { bgcolor: '#d97706' } }}
                             onClick={() => {
                                 const target = chatDialog;
                                 setChatDialog(null);
                                 setForwardToAdminDialog(target);
-                                setForwardToAdminText(target.teacherFeedback || `Giảng viên đã xem xét giải trình của sinh viên ${target.student?.name} và đề xuất mở bảng điểm để điều chỉnh.`);
+                                setForwardToAdminText(target.teacherFeedback || `Giảng viên đã xem xét đơn phúc khảo của sinh viên ${target.student?.name} (${target.student?.code}) môn ${target.course?.name || ''}. Đề xuất Admin mở khóa bảng điểm để giảng viên kiểm tra & chấm lại bài thi.`);
                             }}
                         >
-                            📤 Gửi ý kiến lên Admin
+                            📤 Gửi Admin Xin Mở Khóa
                         </Button>
                         <Button
                             size="small"
@@ -1267,8 +1559,8 @@ function GradeManagement() {
 
             {/* Snackbar */}
             <Snackbar open={!!snack} autoHideDuration={4000} onClose={() => setSnack(null)} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
-                <Alert severity={snack?.severity} onClose={() => setSnack(null)} sx={{ borderRadius: 2 }}>
-                    {snack?.msg}
+                <Alert severity={snack?.severity || snack?.type || 'info'} onClose={() => setSnack(null)} sx={{ borderRadius: 2 }}>
+                    {snack?.msg || snack?.message}
                 </Alert>
             </Snackbar>
         </Box>

@@ -590,6 +590,13 @@ exports.registerSection = async (req, res) => {
             });
         }
 
+        const io = req.app ? req.app.get('io') : null;
+        if (io) {
+            io.emit('attendance-updated', { classSectionId: section._id });
+            io.emit('class-section-updated', { classSectionId: section._id });
+            io.emit('grade-updated', { classSectionId: section._id });
+        }
+
         res.json({
             success: true,
             message: `Đăng ký thành công học phần "${section.course?.name}" (${section.sectionCode}) - ${section.course?.credits || 3} tín chỉ!`
@@ -626,6 +633,13 @@ exports.dropSection = async (req, res) => {
 
         // Xóa bản ghi điểm chưa khóa/công bố khi sinh viên hủy môn
         await Grade.deleteOne({ student: studentId, classSection: section._id, isLocked: false, isPublished: false });
+
+        const io = req.app ? req.app.get('io') : null;
+        if (io) {
+            io.emit('attendance-updated', { classSectionId: section._id });
+            io.emit('class-section-updated', { classSectionId: section._id });
+            io.emit('grade-updated', { classSectionId: section._id });
+        }
 
         res.json({
             success: true,

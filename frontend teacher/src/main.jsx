@@ -7,6 +7,10 @@ import { store } from './store';
 import { ThemeProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import theme from './theme';
+import { initClickTracker } from './utils/tracker';
+
+// Khởi chạy theo dõi sự kiện click trên giao diện Giảng viên
+initClickTracker('teacher');
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

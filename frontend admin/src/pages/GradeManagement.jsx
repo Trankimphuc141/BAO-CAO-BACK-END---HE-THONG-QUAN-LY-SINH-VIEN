@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { io } from 'socket.io-client';
 import { api } from '../services/api';
 
 const LETTER_COLORS = {
@@ -23,6 +24,11 @@ export default function GradeManagement() {
   const [loadingClasses, setLoadingClasses] = useState(true);
   const [toast, setToast] = useState(null);
 
+  const selectedClassIdRef = useRef(selectedClassId);
+  useEffect(() => {
+    selectedClassIdRef.current = selectedClassId;
+  }, [selectedClassId]);
+
   // Edit grade modal
   const [editModalGrade, setEditModalGrade] = useState(null);
   const [editForm, setEditForm] = useState({
@@ -42,6 +48,15 @@ export default function GradeManagement() {
   const [processingAction, setProcessingAction] = useState(false);
   const [syncing, setSyncing] = useState(false);
 
+  // Appeal decision modal
+  const [decisionModalAppeal, setDecisionModalAppeal] = useState(null);
+  const [decisionForm, setDecisionForm] = useState({
+    decision: 'approve_update', // 'approve_update' | 'unlock_teacher' | 'reject'
+    newScore: '',
+    adminComment: ''
+  });
+  const [savingDecision, setSavingDecision] = useState(false);
+
   // Appeal filter
   const [appealFilter, setAppealFilter] = useState('all'); // all, unlock_requested, re_submitted, done
 
@@ -50,18 +65,19 @@ export default function GradeManagement() {
     setTimeout(() => setToast(null), 4000);
   };
 
-  // Fetch classes overview
+  // Fetch classes overview (không phụ thuộc vào selectedClassId để tránh re-render vô tận)
   const fetchClasses = useCallback(async () => {
     setLoadingClasses(true);
-    const res = await api.getAdminGradeClasses();
-    if (res.success && res.data) {
-      setClasses(res.data);
-      if (!selectedClassId && res.data.length > 0) {
-        setSelectedClassId(res.data[0]._id);
+    try {
+      const res = await api.getAdminGradeClasses();
+      if (res.success && res.data) {
+        setClasses(res.data);
+        setSelectedClassId((prev) => prev || (res.data.length > 0 ? res.data[0]._id : ''));
       }
+    } finally {
+      setLoadingClasses(false);
     }
-    setLoadingClasses(false);
-  }, [selectedClassId]);
+  }, []);
 
   // Fetch appeals
   const fetchAppeals = useCallback(async () => {
@@ -72,17 +88,27 @@ export default function GradeManagement() {
   }, []);
 
   // Fetch selected class detail
+  const isFetchingGradesRef = useRef(false);
   const fetchClassGrades = useCallback(async (classId) => {
-    if (!classId) return;
+    if (!classId || isFetchingGradesRef.current) return;
+    isFetchingGradesRef.current = true;
     setLoading(true);
-    const res = await api.getAdminClassGrades(classId);
-    if (res.success && res.data) {
-      setCurrentClassData(res.data.classSection);
-      setGrades(res.data.grades || []);
-    } else {
-      showToast(res.message || 'Lỗi khi tải bảng điểm', 'error');
+    try {
+      const res = await api.getAdminClassGrades(classId);
+      if (res.success && res.data) {
+        setCurrentClassData(res.data.classSection);
+        // Lọc bỏ các bản ghi không hợp lệ hoặc sinh viên null
+        const validGrades = (res.data.grades || []).filter((g) => g && g.student);
+        setGrades(validGrades);
+      } else {
+        showToast(res.message || 'Lỗi khi tải bảng điểm', 'error');
+      }
+    } catch (err) {
+      showToast('Lỗi khi tải bảng điểm: ' + err.message, 'error');
+    } finally {
+      setLoading(false);
+      isFetchingGradesRef.current = false;
     }
-    setLoading(false);
   }, []);
 
   useEffect(() => {
@@ -96,18 +122,53 @@ export default function GradeManagement() {
     }
   }, [selectedClassId, fetchClassGrades]);
 
-  // Auto-sync on window focus
+  // Real-time synchronization via Socket.IO với cơ chế debounce chống loop
   useEffect(() => {
-    const handleFocus = () => {
-      fetchClasses();
-      fetchAppeals();
-      if (selectedClassId) {
-        fetchClassGrades(selectedClassId);
+    const socketUrl = window.location.hostname === '127.0.0.1' ? 'http://127.0.0.1:5000' : 'http://localhost:5000';
+    const socket = io(socketUrl, { transports: ['websocket', 'polling'] });
+
+    let debounceTimer = null;
+    const handleRealtimeSync = (data) => {
+      // Nếu sự kiện dành riêng cho 1 lớp khác lớp đang mở, chỉ làm mới danh sách tổng quan
+      if (data && data.classSectionId && selectedClassIdRef.current && String(data.classSectionId) !== String(selectedClassIdRef.current)) {
+        if (debounceTimer) clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => {
+          fetchClasses();
+          fetchAppeals();
+        }, 1200);
+        return;
       }
+
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        fetchClasses();
+        fetchAppeals();
+        if (selectedClassIdRef.current) {
+          fetchClassGrades(selectedClassIdRef.current);
+        }
+      }, 1200);
     };
-    window.addEventListener('focus', handleFocus);
-    return () => window.removeEventListener('focus', handleFocus);
-  }, [selectedClassId, fetchClasses, fetchAppeals, fetchClassGrades]);
+
+    socket.on('grade-updated', handleRealtimeSync);
+    socket.on('grades-submitted', handleRealtimeSync);
+    socket.on('grades-published', handleRealtimeSync);
+    socket.on('appeal-updated', handleRealtimeSync);
+    socket.on('new-appeal', handleRealtimeSync);
+    socket.on('attendance-updated', handleRealtimeSync);
+    socket.on('attendance-synced', handleRealtimeSync);
+
+    return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      socket.off('grade-updated', handleRealtimeSync);
+      socket.off('grades-submitted', handleRealtimeSync);
+      socket.off('grades-published', handleRealtimeSync);
+      socket.off('appeal-updated', handleRealtimeSync);
+      socket.off('new-appeal', handleRealtimeSync);
+      socket.off('attendance-updated', handleRealtimeSync);
+      socket.off('attendance-synced', handleRealtimeSync);
+      socket.disconnect();
+    };
+  }, [fetchClasses, fetchAppeals, fetchClassGrades]);
 
   // Calculations for quick statistics
   const stats = useMemo(() => {
@@ -181,6 +242,45 @@ export default function GradeManagement() {
       }
     } else {
       showToast(res.message || 'Lỗi khi mở khóa bảng điểm', 'error');
+    }
+  };
+
+  const handleOpenDecisionModal = (appeal) => {
+    setDecisionModalAppeal(appeal);
+    setDecisionForm({
+      decision: 'approve_update',
+      newScore: appeal.proposedScore !== null && appeal.proposedScore !== undefined ? appeal.proposedScore : appeal.oldScore,
+      adminComment: `Ban Quản Lý (Admin) đã kiểm tra lại bài thi và quyết định phê duyệt điểm phúc khảo.`
+    });
+  };
+
+  const handleConfirmDecision = async () => {
+    if (!decisionModalAppeal) return;
+    if (decisionForm.decision === 'approve_update') {
+      if (decisionForm.newScore === '' || isNaN(Number(decisionForm.newScore))) {
+        showToast('Vui lòng nhập điểm số mới hợp lệ (từ 0 đến 10)', 'error');
+        return;
+      }
+      const score = Number(decisionForm.newScore);
+      if (score < 0 || score > 10) {
+        showToast('Điểm số phải từ 0 đến 10', 'error');
+        return;
+      }
+    }
+    setSavingDecision(true);
+    const res = await api.adminDecideAppeal(decisionModalAppeal._id, {
+      decision: decisionForm.decision,
+      newScore: decisionForm.newScore !== '' ? Number(decisionForm.newScore) : null,
+      adminComment: decisionForm.adminComment
+    });
+    setSavingDecision(false);
+    if (res.success) {
+      showToast(`🎉 ${res.message || 'Đã xử lý quyết định phúc khảo thành công!'}`);
+      setDecisionModalAppeal(null);
+      await fetchAppeals();
+      if (selectedClassId) await fetchClassGrades(selectedClassId);
+    } else {
+      showToast(res.message || 'Lỗi khi xử lý quyết định phúc khảo', 'error');
     }
   };
 
@@ -761,43 +861,63 @@ export default function GradeManagement() {
                           )}
                         </td>
                         <td style={{ padding: '14px 16px', textAlign: 'center' }}>
-                          {isUnlockRequested && (
-                            <button
-                              onClick={() => {
-                                setUnlockModal(appeal);
-                                setUnlockNote(`Đồng ý mở khóa bảng điểm cho GV ${appeal.teacher?.name} xử lý phúc khảo SV ${appeal.student?.name}`);
-                              }}
-                              style={{
-                                background: '#d97706', color: 'white', border: 'none',
-                                padding: '8px 14px', borderRadius: '6px', fontWeight: 700, fontSize: '12px',
-                                cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px'
-                              }}
-                            >
-                              <i className="fa-solid fa-lock-open"></i> Mở Khóa Cho GV
-                            </button>
-                          )}
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'center' }}>
+                            {appeal.status !== 'admin_approved_published' && (
+                              <button
+                                onClick={() => handleOpenDecisionModal(appeal)}
+                                style={{
+                                  background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)',
+                                  color: 'white', border: 'none',
+                                  padding: '7px 12px', borderRadius: '6px', fontWeight: 700, fontSize: '11.5px',
+                                  cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '5px',
+                                  boxShadow: '0 2px 6px rgba(79, 70, 229, 0.25)', whiteSpace: 'nowrap'
+                                }}
+                                title="Xem xét đơn phúc khảo, kiểm tra lại bài thi và ra quyết định cập nhật điểm"
+                              >
+                                <i className="fa-solid fa-scale-balanced"></i> Quyết Định & Cập Nhật Điểm
+                              </button>
+                            )}
 
-                          {isReSubmitted && (
-                            <button
-                              onClick={() => {
-                                setSelectedClassId(appeal.classSection?._id || appeal.classSection);
-                                setActiveTab('review');
-                                setPublishModal(true);
-                                setPublishNote(`Công bố điểm mới sau phúc khảo cho môn ${appeal.course?.name}`);
-                              }}
-                              style={{
-                                background: '#7e22ce', color: 'white', border: 'none',
-                                padding: '8px 14px', borderRadius: '6px', fontWeight: 700, fontSize: '12px',
-                                cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px'
-                              }}
-                            >
-                              <i className="fa-solid fa-bullhorn"></i> Công Bố Điểm Mới
-                            </button>
-                          )}
+                            {isUnlockRequested && (
+                              <button
+                                onClick={() => {
+                                  setUnlockModal(appeal);
+                                  setUnlockNote(`Đồng ý mở khóa bảng điểm cho GV ${appeal.teacher?.name} xử lý phúc khảo SV ${appeal.student?.name}`);
+                                }}
+                                style={{
+                                  background: '#d97706', color: 'white', border: 'none',
+                                  padding: '6px 12px', borderRadius: '6px', fontWeight: 600, fontSize: '11px',
+                                  cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap'
+                                }}
+                              >
+                                <i className="fa-solid fa-lock-open"></i> Mở Khóa Cho GV
+                              </button>
+                            )}
 
-                          {!isUnlockRequested && !isReSubmitted && (
-                            <span style={{ color: '#94a3b8', fontSize: '12px' }}>—</span>
-                          )}
+                            {isReSubmitted && (
+                              <button
+                                onClick={() => {
+                                  setSelectedClassId(appeal.classSection?._id || appeal.classSection);
+                                  setActiveTab('review');
+                                  setPublishModal(true);
+                                  setPublishNote(`Công bố điểm mới sau phúc khảo cho môn ${appeal.course?.name}`);
+                                }}
+                                style={{
+                                  background: '#7e22ce', color: 'white', border: 'none',
+                                  padding: '6px 12px', borderRadius: '6px', fontWeight: 600, fontSize: '11px',
+                                  cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap'
+                                }}
+                              >
+                                <i className="fa-solid fa-bullhorn"></i> Công Bố Điểm Mới
+                              </button>
+                            )}
+
+                            {appeal.status === 'admin_approved_published' && (
+                              <span style={{ color: '#059669', fontSize: '12px', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                <i className="fa-solid fa-check-circle"></i> Điểm mới: {appeal.newScore}đ
+                              </span>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );
@@ -1084,6 +1204,292 @@ export default function GradeManagement() {
                 }}
               >
                 {processingAction ? 'Đang xử lý...' : 'Xác Nhận Mở Khóa'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: ADMIN QUYẾT ĐỊNH XỬ LÝ PHÚC KHẢO & CẬP NHẬT ĐIỂM */}
+      {decisionModalAppeal && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.65)',
+          backdropFilter: 'blur(5px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000, padding: '20px'
+        }}>
+          <div style={{
+            background: 'white', borderRadius: '18px', maxWidth: '620px', width: '100%',
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.3)', border: '1px solid #e2e8f0',
+            overflow: 'hidden', display: 'flex', flexDirection: 'column', maxHeight: '90vh'
+          }}>
+            {/* Modal Header */}
+            <div style={{
+              padding: '18px 24px',
+              background: 'linear-gradient(135deg, #312e81 0%, #4f46e5 100%)',
+              color: '#ffffff',
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0
+            }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <i className="fa-solid fa-scale-balanced"></i> Quyết Định & Cập Nhật Điểm Phúc Khảo
+                </h3>
+                <div style={{ fontSize: '12.5px', opacity: 0.9, marginTop: '3px' }}>
+                  Hội đồng Ban Quản Lý (Admin) thẩm tra kết quả và cập nhật điểm số chính thức
+                </div>
+              </div>
+              <button
+                onClick={() => setDecisionModalAppeal(null)}
+                style={{
+                  background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff',
+                  borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px'
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Content Scrollable */}
+            <div style={{ padding: '22px 24px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {/* Thông tin sinh viên & học phần */}
+              <div style={{
+                background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '14px 16px',
+                display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', fontSize: '13px'
+              }}>
+                <div>
+                  <span style={{ color: '#64748b', fontSize: '11.5px', display: 'block', fontWeight: 600 }}>Sinh viên:</span>
+                  <strong style={{ color: '#1e293b', fontSize: '14px' }}>{decisionModalAppeal.student?.name}</strong>
+                  <span style={{ color: '#2563eb', marginLeft: '6px', fontSize: '12px', fontFamily: 'monospace' }}>({decisionModalAppeal.student?.code})</span>
+                </div>
+                <div>
+                  <span style={{ color: '#64748b', fontSize: '11.5px', display: 'block', fontWeight: 600 }}>Lớp học phần:</span>
+                  <strong style={{ color: '#1e293b' }}>{decisionModalAppeal.classSection?.sectionCode}</strong>
+                  <span style={{ color: '#64748b', display: 'block', fontSize: '12px' }}>{decisionModalAppeal.course?.name}</span>
+                </div>
+                <div>
+                  <span style={{ color: '#64748b', fontSize: '11.5px', display: 'block', fontWeight: 600 }}>Giảng viên phụ trách:</span>
+                  <strong style={{ color: '#334155' }}>{decisionModalAppeal.teacher?.name || 'Giảng viên'}</strong>
+                </div>
+                <div>
+                  <span style={{ color: '#64748b', fontSize: '11.5px', display: 'block', fontWeight: 600 }}>Cột điểm phúc khảo:</span>
+                  <span style={{
+                    display: 'inline-block', padding: '2px 8px', borderRadius: '6px', fontSize: '12px', fontWeight: 700,
+                    background: decisionModalAppeal.scoreType === 'final' ? '#eff6ff' : '#fdf4ff',
+                    color: decisionModalAppeal.scoreType === 'final' ? '#2563eb' : '#a21caf',
+                    border: `1px solid ${decisionModalAppeal.scoreType === 'final' ? '#bfdbfe' : '#f5d0fe'}`
+                  }}>
+                    {decisionModalAppeal.scoreType === 'midterm' ? 'Giữa kỳ (30%)' : decisionModalAppeal.scoreType === 'final' ? 'Cuối kỳ (60%)' : 'Chuyên cần (10%)'}
+                  </span>
+                  <div style={{ marginTop: '4px', fontSize: '12px', color: '#dc2626', fontWeight: 700 }}>
+                    Điểm ban đầu: {decisionModalAppeal.oldScore}đ
+                    {decisionModalAppeal.proposedScore !== null && decisionModalAppeal.proposedScore !== undefined && (
+                      <span style={{ color: '#4f46e5', marginLeft: '8px' }}>(SV mong muốn: {decisionModalAppeal.proposedScore}đ)</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Lý do sinh viên */}
+              <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '10px', padding: '12px 14px' }}>
+                <div style={{ fontSize: '12px', fontWeight: 700, color: '#92400e', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                  <i className="fa-solid fa-user-pen"></i> Lý do sinh viên xin phúc khảo:
+                </div>
+                <div style={{ fontSize: '13px', color: '#78350f', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
+                  {decisionModalAppeal.reason}
+                  {decisionModalAppeal.studentNote && (
+                    <div style={{ marginTop: '6px', fontSize: '11.5px', fontStyle: 'italic' }}>
+                      Ghi chú: {decisionModalAppeal.studentNote}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Ý kiến xem xét của Giảng viên */}
+              <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '10px', padding: '12px 14px' }}>
+                <div style={{ fontSize: '12px', fontWeight: 700, color: '#1e40af', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                  <i className="fa-solid fa-chalkboard-user"></i> Ý kiến thẩm định từ Giảng viên gửi Admin:
+                </div>
+                <div style={{ fontSize: '13px', color: '#1e3a8a', lineHeight: 1.5 }}>
+                  {decisionModalAppeal.teacherUnlockRequestReason || decisionModalAppeal.teacherFeedback || 'Giảng viên đã rà soát bài thi và chuyển lên Admin để xem xét ra quyết định kiểm tra lại điểm.'}
+                </div>
+              </div>
+
+              {/* Quyết định của Admin */}
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: '#1e293b', marginBottom: '8px' }}>
+                  Chọn quyết định xử lý của Admin <span style={{ color: '#ef4444' }}>*</span>:
+                </label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '8px' }}>
+                  {/* Option 1 */}
+                  <label style={{
+                    display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '10px 14px', borderRadius: '10px',
+                    border: decisionForm.decision === 'approve_update' ? '2px solid #4f46e5' : '1px solid #e2e8f0',
+                    background: decisionForm.decision === 'approve_update' ? '#eef2ff' : '#ffffff',
+                    cursor: 'pointer'
+                  }}>
+                    <input
+                      type="radio"
+                      name="appeal_decision"
+                      value="approve_update"
+                      checked={decisionForm.decision === 'approve_update'}
+                      onChange={() => setDecisionForm({ ...decisionForm, decision: 'approve_update' })}
+                      style={{ marginTop: '3px' }}
+                    />
+                    <div>
+                      <strong style={{ fontSize: '13.5px', color: '#312e81' }}>
+                        ✅ Phê duyệt & Trực tiếp cập nhật điểm mới ngay
+                      </strong>
+                      <div style={{ fontSize: '12px', color: '#4b5563', marginTop: '2px' }}>
+                        Admin chốt điểm mới sau khi kiểm tra lại bài thi. Hệ thống sẽ tự động cập nhật bảng điểm của SV, tính lại GPA và thông báo cho cả SV và GV.
+                      </div>
+                    </div>
+                  </label>
+
+                  {/* Option 2 */}
+                  <label style={{
+                    display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '10px 14px', borderRadius: '10px',
+                    border: decisionForm.decision === 'unlock_teacher' ? '2px solid #d97706' : '1px solid #e2e8f0',
+                    background: decisionForm.decision === 'unlock_teacher' ? '#fffbeb' : '#ffffff',
+                    cursor: 'pointer'
+                  }}>
+                    <input
+                      type="radio"
+                      name="appeal_decision"
+                      value="unlock_teacher"
+                      checked={decisionForm.decision === 'unlock_teacher'}
+                      onChange={() => setDecisionForm({ ...decisionForm, decision: 'unlock_teacher' })}
+                      style={{ marginTop: '3px' }}
+                    />
+                    <div>
+                      <strong style={{ fontSize: '13.5px', color: '#92400e' }}>
+                        🔓 Mở khóa bảng điểm cho Giảng viên tự sửa điểm
+                      </strong>
+                      <div style={{ fontSize: '12px', color: '#4b5563', marginTop: '2px' }}>
+                        Cấp quyền mở khóa để Giảng viên trực tiếp vào bảng điểm chấm lại bài và gửi lại cho Admin công bố sau.
+                      </div>
+                    </div>
+                  </label>
+
+                  {/* Option 3 */}
+                  <label style={{
+                    display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '10px 14px', borderRadius: '10px',
+                    border: decisionForm.decision === 'reject' ? '2px solid #dc2626' : '1px solid #e2e8f0',
+                    background: decisionForm.decision === 'reject' ? '#fef2f2' : '#ffffff',
+                    cursor: 'pointer'
+                  }}>
+                    <input
+                      type="radio"
+                      name="appeal_decision"
+                      value="reject"
+                      checked={decisionForm.decision === 'reject'}
+                      onChange={() => setDecisionForm({ ...decisionForm, decision: 'reject' })}
+                      style={{ marginTop: '3px' }}
+                    />
+                    <div>
+                      <strong style={{ fontSize: '13.5px', color: '#991b1b' }}>
+                        ❌ Từ chối phúc khảo (Giữ nguyên điểm số ban đầu)
+                      </strong>
+                      <div style={{ fontSize: '12px', color: '#4b5563', marginTop: '2px' }}>
+                        Bài thi đã được chấm chính xác theo đáp án và barem quy định, không có căn cứ nâng điểm.
+                      </div>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              {/* Nhập điểm mới nếu chọn approve_update */}
+              {decisionForm.decision === 'approve_update' && (
+                <div style={{
+                  background: '#f8fafc', border: '1.5px dashed #4f46e5', borderRadius: '10px', padding: '14px 16px',
+                  display: 'flex', flexDirection: 'column', gap: '10px'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <label style={{ fontSize: '13px', fontWeight: 700, color: '#1e293b' }}>
+                      Điểm số mới sau phúc khảo (thang 10) <span style={{ color: '#ef4444' }}>*</span>:
+                    </label>
+                    <div style={{ fontSize: '13px', fontWeight: 700 }}>
+                      <span style={{ color: '#dc2626' }}>Điểm cũ: {decisionModalAppeal.oldScore}đ</span>
+                      <span style={{ margin: '0 8px', color: '#64748b' }}>➜</span>
+                      <span style={{ color: '#059669', fontSize: '15px' }}>
+                        Điểm mới: {decisionForm.newScore !== '' ? `${decisionForm.newScore}đ` : '...'}
+                      </span>
+                    </div>
+                  </div>
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    max="10"
+                    required
+                    placeholder="Ví dụ: 8.0"
+                    value={decisionForm.newScore}
+                    onChange={(e) => setDecisionForm({ ...decisionForm, newScore: e.target.value })}
+                    style={{
+                      width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1.5px solid #cbd5e1',
+                      fontSize: '15px', fontWeight: 700, color: '#1e293b'
+                    }}
+                  />
+                </div>
+              )}
+
+              {/* Ghi chú quyết định / lý do */}
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: '#1e293b', marginBottom: '6px' }}>
+                  {decisionForm.decision === 'reject' ? 'Lý do từ chối phúc khảo *:' : 'Căn cứ / Ghi chú quyết định của Admin:'}
+                </label>
+                <textarea
+                  rows={3}
+                  required
+                  placeholder={
+                    decisionForm.decision === 'approve_update'
+                      ? 'VD: Hội đồng phúc khảo đã kiểm tra lại bài thi. Chấm bổ sung ý 2 câu 3 (+1.5đ). Quyết định cập nhật điểm mới...'
+                      : decisionForm.decision === 'reject'
+                      ? 'VD: Đã rà soát bài thi và barem, điểm chấm ban đầu hoàn toàn chính xác. Giữ nguyên điểm số.'
+                      : 'VD: Admin đồng ý cho Giảng viên mở bảng điểm chấm lại...'
+                  }
+                  value={decisionForm.adminComment}
+                  onChange={(e) => setDecisionForm({ ...decisionForm, adminComment: e.target.value })}
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1.5px solid #cbd5e1', fontSize: '13px' }}
+                />
+              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div style={{
+              padding: '16px 24px', borderTop: '1px solid #e2e8f0', background: '#f8fafc',
+              display: 'flex', justifyContent: 'flex-end', gap: '12px', flexShrink: 0
+            }}>
+              <button
+                type="button"
+                onClick={() => setDecisionModalAppeal(null)}
+                style={{
+                  padding: '10px 18px', borderRadius: '8px', border: '1px solid #cbd5e1',
+                  background: 'white', fontWeight: 600, cursor: 'pointer', color: '#475569'
+                }}
+              >
+                Hủy bỏ
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDecision}
+                disabled={savingDecision}
+                style={{
+                  padding: '10px 24px', borderRadius: '8px', border: 'none',
+                  background: decisionForm.decision === 'reject' ? '#dc2626' : 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)',
+                  color: 'white', fontWeight: 700, cursor: 'pointer',
+                  boxShadow: '0 4px 12px rgba(79, 70, 229, 0.3)',
+                  display: 'inline-flex', alignItems: 'center', gap: '8px'
+                }}
+              >
+                {savingDecision ? (
+                  <>
+                    <i className="fa-solid fa-spinner fa-spin"></i> Đang xử lý...
+                  </>
+                ) : (
+                  <>
+                    <i className="fa-solid fa-check"></i> Xác Nhận & Áp Dụng Quyết Định
+                  </>
+                )}
               </button>
             </div>
           </div>

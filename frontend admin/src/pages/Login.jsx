@@ -45,10 +45,10 @@ const Login = () => {
           }}>
             <i className="fa-solid fa-shield-halved" style={{ fontSize: '28px', color: '#fff' }}></i>
           </div>
-          <h1 style={{ fontSize: '22px', fontWeight: 700, color: '#fff', margin: '0 0 6px', letterSpacing: '-0.3px' }}>
+          <h1 style={{ fontSize: '22px', fontWeight: 700, color: '#0f172a', margin: '0 0 6px', letterSpacing: '-0.3px' }}>
             Admin Portal
           </h1>
-          <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.45)', margin: 0 }}>
+          <p style={{ fontSize: '13px', color: '#64748b', margin: 0 }}>
             Hệ thống Quản lý Đào Tạo — Phòng Đào Tạo
           </p>
         </div>
@@ -57,16 +57,16 @@ const Login = () => {
         <form onSubmit={handleLogin}>
           {error && (
             <div style={{
-              background: 'rgba(220,38,38,0.12)', border: '1px solid rgba(220,38,38,0.3)',
+              background: '#fef2f2', border: '1px solid #fecaca',
               borderRadius: '8px', padding: '10px 14px', marginBottom: '16px',
-              color: '#fca5a5', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px'
+              color: '#dc2626', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px'
             }}>
               <i className="fa-solid fa-circle-exclamation"></i> {error}
             </div>
           )}
 
           <div style={{ marginBottom: '16px' }}>
-            <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'rgba(255,255,255,0.55)', marginBottom: '7px', textTransform: 'uppercase', letterSpacing: '0.6px' }}>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#334155', marginBottom: '7px', textTransform: 'uppercase', letterSpacing: '0.6px' }}>
               Tên Đăng Nhập
             </label>
             <input
@@ -81,7 +81,7 @@ const Login = () => {
           </div>
 
           <div style={{ marginBottom: '24px' }}>
-            <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'rgba(255,255,255,0.55)', marginBottom: '7px', textTransform: 'uppercase', letterSpacing: '0.6px' }}>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#334155', marginBottom: '7px', textTransform: 'uppercase', letterSpacing: '0.6px' }}>
               Mật Khẩu
             </label>
             <input

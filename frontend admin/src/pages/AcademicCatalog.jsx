@@ -557,17 +557,14 @@ const AcademicCatalog = () => {
                     <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 600, marginBottom: '6px' }}>
                       Khoa / Bộ môn
                     </label>
-                    <select
+                    <input
+                      type="text"
                       className="form-control"
                       style={{ width: '100%' }}
+                      placeholder="Nhập Khoa / Bộ môn (VD: Công nghệ thông tin)..."
                       value={courseForm.department}
                       onChange={e => setCourseForm({ ...courseForm, department: e.target.value })}
-                    >
-                      <option value="Công nghệ thông tin">Công nghệ thông tin</option>
-                      <option value="Toán">Toán</option>
-                      <option value="Kinh tế">Kinh tế</option>
-                      <option value="Ngoại ngữ">Ngoại ngữ</option>
-                    </select>
+                    />
                   </div>
 
                   <div>

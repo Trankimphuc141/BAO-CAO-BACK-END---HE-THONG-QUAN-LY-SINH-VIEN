@@ -584,20 +584,16 @@ const Teachers = () => {
                     <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 600, color: 'var(--text-main)', marginBottom: '5px' }}>
                       Khoa / Bộ môn <span style={{ color: '#ef4444' }}>*</span>
                     </label>
-                    <select
+                    <input
+                      type="text"
                       name="department"
+                      placeholder="Nhập Khoa / Bộ môn (VD: Công nghệ thông tin)..."
                       value={formData.department}
                       onChange={handleFormChange}
                       className="form-control"
                       style={{ width: '100%' }}
-                    >
-                      <option value="Công nghệ thông tin">Công nghệ thông tin</option>
-                      <option value="Toán">Toán</option>
-                      <option value="Vật lý">Vật lý</option>
-                      <option value="Hóa học">Hóa học</option>
-                      <option value="Kinh tế">Kinh tế</option>
-                      <option value="Ngoại ngữ">Ngoại ngữ</option>
-                    </select>
+                      required
+                    />
                   </div>
 
                   <div>
@@ -784,20 +780,15 @@ const Teachers = () => {
                     <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 600, color: 'var(--text-main)', marginBottom: '5px' }}>
                       Khoa / Bộ môn
                     </label>
-                    <select
+                    <input
+                      type="text"
                       name="department"
+                      placeholder="Nhập Khoa / Bộ môn (VD: Công nghệ thông tin)..."
                       value={editFormData.department}
                       onChange={handleEditFormChange}
                       className="form-control"
                       style={{ width: '100%' }}
-                    >
-                      <option value="Công nghệ thông tin">Công nghệ thông tin</option>
-                      <option value="Toán">Toán</option>
-                      <option value="Vật lý">Vật lý</option>
-                      <option value="Hóa học">Hóa học</option>
-                      <option value="Kinh tế">Kinh tế</option>
-                      <option value="Ngoại ngữ">Ngoại ngữ</option>
-                    </select>
+                    />
                   </div>
 
                   <div>
